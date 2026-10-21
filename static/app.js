@@ -6,6 +6,8 @@ const state = {
   search: "",
   activeDocument: null,
   csrf: "",
+  mfaRequired: false,
+  mfaSecret: "",
   auditIntegrity: { valid: true, events_checked: 0 },
 };
 
@@ -72,6 +74,8 @@ function bytesLabel(bytes) {
 function renderLogin() {
   byId("login-view").hidden = false;
   byId("app-shell").hidden = true;
+  byId("mfa-login-field").hidden = !state.mfaRequired;
+  byId("login-mfa-code").required = state.mfaRequired;
 }
 
 function renderApp() {
@@ -90,7 +94,23 @@ function renderApp() {
     button.hidden = forcedPasswordChange;
   });
   if (forcedPasswordChange && !passwordDialog.open) passwordDialog.showModal();
+  const mfaDialog = byId("mfa-dialog");
+  const forcedMfaEnrollment = state.user.must_enroll_mfa;
+  byId("mfa-close").hidden = forcedMfaEnrollment;
+  if (!forcedPasswordChange && forcedMfaEnrollment && !mfaDialog.open) {
+    mfaDialog.showModal();
+    prepareMfaEnrollment().catch((error) => {
+      byId("mfa-error").textContent = error.message;
+    });
+  }
   if (state.user.role !== "admin" && document.querySelector('[data-view="activity"]').classList.contains("is-active")) setView("documents");
+}
+
+async function prepareMfaEnrollment() {
+  const result = await api("/api/account/mfa/enroll", { method: "POST" });
+  state.mfaSecret = result.secret;
+  byId("mfa-secret").textContent = result.secret;
+  byId("mfa-error").textContent = "";
 }
 
 function visibleDocuments() {
@@ -254,11 +274,13 @@ async function downloadDocument(documentId) {
 async function bootstrap() {
   await refreshCsrf();
   const config = await api("/api/config");
+  state.mfaRequired = config.mfa_required;
   byId("demo-access").hidden = !config.demo_mode;
+  byId("workspace-mode").textContent = config.demo_mode ? "DEMO" : "PRODUCTION";
   try {
     state.user = await api("/api/me");
     renderApp();
-    if (!state.user.must_change_password) await loadDashboard();
+    if (!state.user.must_change_password && !state.user.must_enroll_mfa) await loadDashboard();
   } catch (error) {
     if (error.message.includes("Failed to fetch")) throw error;
     renderLogin();
@@ -273,10 +295,14 @@ byId("login-form").addEventListener("submit", async (event) => {
     state.user = await api("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+      body: JSON.stringify({
+        email: form.get("email"),
+        password: form.get("password"),
+        mfa_code: form.get("mfa_code"),
+      }),
     });
     renderApp();
-    if (!state.user.must_change_password) await loadDashboard();
+    if (!state.user.must_change_password && !state.user.must_enroll_mfa) await loadDashboard();
   } catch (error) {
     byId("login-error").textContent = error.message;
   }
@@ -317,8 +343,40 @@ byId("password-form").addEventListener("submit", async (event) => {
     byId("security-dialog").close();
     event.currentTarget.reset();
     toast("Password updated. Other sessions were signed out.");
-    await loadDashboard();
+    renderApp();
+    if (!state.user.must_enroll_mfa) await loadDashboard();
   } catch (error) { toast(error.message, true); }
+});
+
+byId("mfa-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  byId("mfa-error").textContent = "";
+  try {
+    await api("/api/account/mfa/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: byId("confirm-mfa-code").value }),
+    });
+    state.user.must_enroll_mfa = false;
+    byId("mfa-dialog").close();
+    event.currentTarget.reset();
+    state.mfaSecret = "";
+    byId("mfa-secret").textContent = "Authenticator enabled";
+    toast("Authenticator enabled.");
+    await loadDashboard();
+  } catch (error) { byId("mfa-error").textContent = error.message; }
+});
+
+byId("copy-mfa-secret").addEventListener("click", async () => {
+  if (!state.mfaSecret) return;
+  try {
+    await navigator.clipboard.writeText(state.mfaSecret);
+    toast("Setup key copied.");
+  } catch { toast("Could not copy the setup key.", true); }
+});
+
+byId("mfa-dialog").addEventListener("cancel", (event) => {
+  if (state.user?.must_enroll_mfa) event.preventDefault();
 });
 
 document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
@@ -372,7 +430,11 @@ byId("share-form").addEventListener("submit", async (event) => {
 for (const dialog of document.querySelectorAll("dialog")) {
   dialog.querySelectorAll(".close-dialog").forEach((button) => button.addEventListener("click", () => dialog.close()));
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog && !(dialog.id === "security-dialog" && state.user?.must_change_password)) {
+    if (
+      event.target === dialog
+      && !(dialog.id === "security-dialog" && state.user?.must_change_password)
+      && !(dialog.id === "mfa-dialog" && state.user?.must_enroll_mfa)
+    ) {
       dialog.close();
     }
   });

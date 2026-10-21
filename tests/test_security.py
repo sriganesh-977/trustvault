@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
+import pyotp
 
 from app import create_app
 
@@ -35,7 +36,7 @@ def test_exact_document_grant_revocation_and_audit_chain(tmp_path: Path) -> None
         seed=True,
     )
     client = TestClient(app)
-    assert client.get("/api/config").json() == {"demo_mode": True}
+    assert client.get("/api/config").json() == {"demo_mode": True, "mfa_required": False}
     login(client, MEMBER_EMAIL, MEMBER_PASSWORD)
 
     inventory = client.get("/api/documents").json()["documents"]
@@ -244,7 +245,7 @@ def test_production_bootstraps_unique_admin_without_demo_users(
         data_dir=tmp_path / "data",
     )
     client = TestClient(app, base_url="https://testserver")
-    assert client.get("/api/config").json() == {"demo_mode": False}
+    assert client.get("/api/config").json() == {"demo_mode": False, "mfa_required": True}
     assert client.get("/api/documents").status_code == 401
 
     login(client, "security@example.com", "a-long-random-bootstrap-password")
@@ -260,8 +261,58 @@ def test_production_bootstraps_unique_admin_without_demo_users(
     )
     assert change.status_code == 200
     assert client.get("/api/me").json()["must_change_password"] is False
+    assert client.get("/api/me").json()["must_enroll_mfa"] is True
+    assert client.get("/api/documents").status_code == 403
+
+    enrollment = client.post("/api/account/mfa/enroll", headers=csrf_header(client))
+    assert enrollment.status_code == 200
+    secret = enrollment.json()["secret"]
+    assert enrollment.json()["provisioning_uri"].startswith("otpauth://totp/")
+
+    import sqlite3
+
+    connection = sqlite3.connect(app.state.database_path)
+    try:
+        encrypted_secret = connection.execute(
+            "SELECT mfa_secret_encrypted FROM users WHERE email = ?", ("security@example.com",)
+        ).fetchone()[0]
+        assert secret.encode() not in encrypted_secret
+    finally:
+        connection.close()
+
+    invalid_code = client.post(
+        "/api/account/mfa/confirm",
+        headers=csrf_header(client),
+        json={"code": "000000"},
+    )
+    assert invalid_code.status_code == 422
+    confirmed = client.post(
+        "/api/account/mfa/confirm",
+        headers=csrf_header(client),
+        json={"code": pyotp.TOTP(secret).now()},
+    )
+    assert confirmed.status_code == 200
+    assert client.get("/api/me").json()["must_enroll_mfa"] is False
     assert client.get("/api/documents").json() == {"documents": []}
     assert client.cookies.get("tv_session") is not None
+
+    client.post("/api/logout", headers=csrf_header(client))
+    bad_mfa_login = client.post(
+        "/api/login",
+        headers=csrf_header(client),
+        json={"email": "security@example.com", "password": "another-long-random-production-password", "mfa_code": "000000"},
+    )
+    assert bad_mfa_login.status_code == 401
+    good_mfa_login = client.post(
+        "/api/login",
+        headers=csrf_header(client),
+        json={
+            "email": "security@example.com",
+            "password": "another-long-random-production-password",
+            "mfa_code": pyotp.TOTP(secret).now(),
+        },
+    )
+    assert good_mfa_login.status_code == 200
 
 
 def test_password_change_rotates_sessions_and_is_audited(tmp_path: Path) -> None:
@@ -303,3 +354,35 @@ def test_password_change_rotates_sessions_and_is_audited(tmp_path: Path) -> None
 
     actions = [event["action"] for event in client.get("/api/audit").json()["events"]]
     assert "auth.password_changed" in actions
+
+
+def test_repeated_login_failures_lock_only_the_target_account(tmp_path: Path) -> None:
+    app = create_app(
+        database_path=tmp_path / "trustvault.sqlite3",
+        data_dir=tmp_path / "data",
+        seed=True,
+    )
+    client = TestClient(app)
+    headers = csrf_header(client)
+    for _ in range(5):
+        response = client.post(
+            "/api/login",
+            headers=headers,
+            json={"email": ADMIN_EMAIL, "password": "incorrect-password"},
+        )
+        assert response.status_code == 401
+
+    blocked = client.post(
+        "/api/login",
+        headers=headers,
+        json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
+    )
+    assert blocked.status_code == 429
+    assert blocked.headers["Retry-After"] == "900"
+
+    other_account = client.post(
+        "/api/login",
+        headers=headers,
+        json={"email": MEMBER_EMAIL, "password": MEMBER_PASSWORD},
+    )
+    assert other_account.status_code == 200

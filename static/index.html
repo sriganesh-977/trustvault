@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4f5f2">
   <title>TrustVault · Secure document workspace</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/styles.css?v=3">
-  <script src="/app.js?v=3" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=4">
+  <script src="/app.js?v=4" defer></script>
 </head>
 <body>
   <main id="login-view" class="login-shell" hidden>
@@ -21,6 +21,10 @@
         <input id="login-email" name="email" type="email" autocomplete="username" required>
         <label for="login-password">Password</label>
         <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        <div id="mfa-login-field" hidden>
+          <label for="login-mfa-code">Authenticator code</label>
+          <input id="login-mfa-code" name="mfa_code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6">
+        </div>
         <p id="login-error" class="form-error" role="alert"></p>
         <button class="button button-primary login-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
       </form>
@@ -36,7 +40,7 @@
   <div id="app-shell" class="app-shell" hidden>
     <aside class="sidebar">
       <a class="brand" href="#documents" aria-label="TrustVault home"><span class="brand-mark">T</span><span>TRUSTVAULT</span></a>
-      <div class="workspace-label">WORKSPACE <span>DEMO</span></div>
+      <div class="workspace-label">WORKSPACE <span id="workspace-mode">DEMO</span></div>
       <nav class="primary-nav" aria-label="Primary navigation">
         <button class="nav-item is-active" data-view="documents"><span class="nav-glyph">▤</span>Documents <span id="nav-document-count" class="nav-count">0</span></button>
         <button class="nav-item" data-view="activity"><span class="nav-glyph">◷</span>Audit trail</button>
@@ -129,6 +133,19 @@
       <label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="20" required>
       <p id="password-note" class="modal-note"><span class="lock-glyph">◆</span> Changing your password signs out all other sessions.</p>
       <div class="modal-actions"><button id="password-cancel" type="button" class="button button-secondary close-dialog">Cancel</button><button class="button button-primary" type="submit">Update password</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="mfa-dialog" class="modal-dialog">
+    <form id="mfa-form" class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">REQUIRED ACCOUNT SECURITY</p><h2>Set up an authenticator</h2></div><button id="mfa-close" type="button" class="icon-button close-dialog" aria-label="Close" hidden>×</button></div>
+      <p class="mfa-instructions">Add this key to an authenticator app as a time-based code, then enter the current six-digit code below.</p>
+      <div class="mfa-secret-box"><span>SETUP KEY</span><code id="mfa-secret">Preparing secure key…</code><button id="copy-mfa-secret" class="text-button" type="button">Copy key</button></div>
+      <label for="confirm-mfa-code">Authenticator code</label>
+      <input id="confirm-mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+      <p class="modal-note"><span class="lock-glyph">◆</span> Keep this setup key private. It is shown only during enrollment.</p>
+      <p id="mfa-error" class="form-error" role="alert"></p>
+      <div class="modal-actions"><button id="mfa-submit" class="button button-primary" type="submit">Verify &amp; enable MFA</button></div>
     </form>
   </dialog>
 

@@ -16,6 +16,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, TypeAdapter
+import pyotp
 
 
 ROOT = Path(__file__).resolve().parent
@@ -25,6 +26,8 @@ DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "trustvault.sqlite3"
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 SESSION_HOURS = 12
 PASSWORD_ITERATIONS = 600_000
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_WINDOW = timedelta(minutes=15)
 
 
 def utc_now() -> datetime:
@@ -103,12 +106,21 @@ def initialize_database(database_path: Path, fernet: Fernet, seed: bool) -> None
                 role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
                 password_hash TEXT NOT NULL,
                 must_change_password INTEGER NOT NULL DEFAULT 0,
+                mfa_secret_encrypted BLOB,
+                mfa_enabled INTEGER NOT NULL DEFAULT 0,
+                must_enroll_mfa INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS sessions (
                 token_hash TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id),
                 expires_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS login_attempts (
+                email_hash TEXT PRIMARY KEY,
+                window_started_at TEXT NOT NULL,
+                failure_count INTEGER NOT NULL,
+                locked_until TEXT
             );
             CREATE TABLE IF NOT EXISTS documents (
                 id TEXT PRIMARY KEY,
@@ -157,6 +169,12 @@ def initialize_database(database_path: Path, fernet: Fernet, seed: bool) -> None
             connection.execute(
                 "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
             )
+        if "mfa_secret_encrypted" not in user_columns:
+            connection.execute("ALTER TABLE users ADD COLUMN mfa_secret_encrypted BLOB")
+        if "mfa_enabled" not in user_columns:
+            connection.execute("ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0")
+        if "must_enroll_mfa" not in user_columns:
+            connection.execute("ALTER TABLE users ADD COLUMN must_enroll_mfa INTEGER NOT NULL DEFAULT 0")
         if not seed or connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
             return
 
@@ -311,6 +329,10 @@ class PasswordChangeRequest(BaseModel):
     new_password: str
 
 
+class MfaConfirmation(BaseModel):
+    code: str
+
+
 def create_app(
     database_path: Path | str = DEFAULT_DB_PATH,
     data_dir: Path | str = DEFAULT_DATA_DIR,
@@ -341,6 +363,10 @@ def create_app(
             if seeded_account:
                 raise RuntimeError("Demo accounts exist in the production database; migrate to a clean database first.")
         bootstrap_admin(database_path, production_mode=True)
+        with connect(database_path) as connection:
+            connection.execute(
+                "UPDATE users SET must_enroll_mfa = 1 WHERE mfa_enabled = 0"
+            )
 
     app = FastAPI(title="TrustVault", docs_url=None, redoc_url=None)
     app.state.database_path = database_path
@@ -371,21 +397,65 @@ def create_app(
         if not cookie or not header or not secrets.compare_digest(cookie, header):
             raise HTTPException(status_code=403, detail="CSRF validation failed")
 
+    def login_is_locked(connection: sqlite3.Connection, email: str) -> bool:
+        email_hash = hashlib.sha256(email.encode()).hexdigest()
+        row = connection.execute(
+            "SELECT locked_until, window_started_at FROM login_attempts WHERE email_hash = ?",
+            (email_hash,),
+        ).fetchone()
+        if not row:
+            return False
+        now = timestamp()
+        if row["locked_until"] and row["locked_until"] > now:
+            return True
+        window_started_at = datetime.fromisoformat(row["window_started_at"])
+        if utc_now() - window_started_at >= LOGIN_WINDOW:
+            connection.execute("DELETE FROM login_attempts WHERE email_hash = ?", (email_hash,))
+        return False
+
+    def record_failed_login(connection: sqlite3.Connection, email: str) -> None:
+        email_hash = hashlib.sha256(email.encode()).hexdigest()
+        now = utc_now()
+        row = connection.execute(
+            "SELECT window_started_at, failure_count FROM login_attempts WHERE email_hash = ?",
+            (email_hash,),
+        ).fetchone()
+        if not row or now - datetime.fromisoformat(row["window_started_at"]) >= LOGIN_WINDOW:
+            window_started = timestamp(now)
+            failure_count = 1
+        else:
+            window_started = row["window_started_at"]
+            failure_count = row["failure_count"] + 1
+        locked_until = timestamp(now + LOGIN_WINDOW) if failure_count >= LOGIN_FAILURE_LIMIT else None
+        connection.execute(
+            "INSERT INTO login_attempts (email_hash, window_started_at, failure_count, locked_until) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT(email_hash) DO UPDATE SET "
+            "window_started_at = excluded.window_started_at, failure_count = excluded.failure_count, "
+            "locked_until = excluded.locked_until",
+            (email_hash, window_started, failure_count, locked_until),
+        )
+
     def current_user(request: Request) -> dict[str, str]:
         token = request.cookies.get("tv_session")
         if not token:
             raise HTTPException(status_code=401, detail="Sign in required")
         with connect(database_path) as connection:
             row = connection.execute(
-                "SELECT u.id, u.email, u.display_name, u.role, u.must_change_password, s.expires_at "
+                "SELECT u.id, u.email, u.display_name, u.role, u.must_change_password, "
+                "u.must_enroll_mfa, u.mfa_enabled, s.expires_at "
                 "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
                 (hashlib.sha256(token.encode()).hexdigest(),),
             ).fetchone()
             if not row or row["expires_at"] <= timestamp():
                 raise HTTPException(status_code=401, detail="Session expired")
-            allowed_during_password_change = {"/api/me", "/api/account/password", "/api/logout"}
-            if row["must_change_password"] and request.url.path not in allowed_during_password_change:
+            allowed_during_setup = {
+                "/api/me", "/api/account/password", "/api/account/mfa/enroll",
+                "/api/account/mfa/confirm", "/api/logout",
+            }
+            if row["must_change_password"] and request.url.path not in {"/api/me", "/api/account/password", "/api/logout"}:
                 raise HTTPException(status_code=403, detail="Change your initial password before continuing")
+            if production_mode and not row["mfa_enabled"] and request.url.path not in allowed_during_setup:
+                raise HTTPException(status_code=403, detail="Enable MFA before continuing")
             return dict(row)
 
     def require_admin(user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
@@ -416,7 +486,7 @@ def create_app(
 
     @app.get("/api/config")
     def public_config() -> dict[str, bool]:
-        return {"demo_mode": seed}
+        return {"demo_mode": seed, "mfa_required": production_mode}
 
     @app.get("/healthz")
     def health_check() -> dict[str, str]:
@@ -431,11 +501,28 @@ def create_app(
         csrf_check(request)
         email = payload.get("email", "").strip().lower()
         password = payload.get("password", "")
+        mfa_code = payload.get("mfa_code", "").strip().replace(" ", "")
+        locked = False
+        failed = False
         with connect(database_path) as connection:
-            user = connection.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-            if not user or not verify_password(password, user["password_hash"]):
-                append_audit(connection, None, email or "unknown", "auth.login_failed")
+            if login_is_locked(connection, email):
+                append_audit(connection, None, email or "unknown", "auth.login_throttled")
+                locked = True
             else:
+                user = connection.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            credentials_valid = not locked and bool(user) and verify_password(password, user["password_hash"])
+            if credentials_valid and production_mode and user["mfa_enabled"]:
+                try:
+                    mfa_secret = fernet.decrypt(user["mfa_secret_encrypted"]).decode()
+                    credentials_valid = pyotp.TOTP(mfa_secret).verify(mfa_code, valid_window=1)
+                except (InvalidToken, TypeError, ValueError):
+                    credentials_valid = False
+            if not locked and not credentials_valid:
+                record_failed_login(connection, email)
+                append_audit(connection, None, email or "unknown", "auth.login_failed")
+                failed = True
+            elif not locked:
+                connection.execute("DELETE FROM login_attempts WHERE email_hash = ?", (hashlib.sha256(email.encode()).hexdigest(),))
                 token = secrets.token_urlsafe(32)
                 expires_at = timestamp(utc_now() + timedelta(hours=SESSION_HOURS))
                 connection.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
@@ -443,16 +530,28 @@ def create_app(
                     "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
                     (hashlib.sha256(token.encode()).hexdigest(), user["id"], expires_at),
                 )
-                append_audit(connection, user["id"], user["email"], "auth.login")
+                append_audit(
+                    connection, user["id"], user["email"], "auth.login",
+                    metadata={"mfa_verified": bool(production_mode and user["mfa_enabled"])},
+                )
                 response.set_cookie(
                     "tv_session", token, httponly=True, secure=os.getenv("TRUSTVAULT_COOKIE_SECURE") == "1",
                     samesite="strict", max_age=SESSION_HOURS * 60 * 60, path="/",
                 )
-                return {
+                result = {
                     "id": user["id"], "email": user["email"], "name": user["display_name"],
                     "role": user["role"], "must_change_password": bool(user["must_change_password"]),
+                    "must_enroll_mfa": bool(user["must_enroll_mfa"]),
                 }
-        raise HTTPException(status_code=401, detail="Email or password is incorrect")
+        if locked:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many failed sign-in attempts. Try again in 15 minutes.",
+                headers={"Retry-After": str(int(LOGIN_WINDOW.total_seconds()))},
+            )
+        if failed:
+            raise HTTPException(status_code=401, detail="Email or password is incorrect")
+        return result
 
     @app.post("/api/logout")
     def logout(request: Request, response: Response, user: dict[str, str] = Depends(current_user)):
@@ -471,6 +570,7 @@ def create_app(
         return {
             "id": user["id"], "email": user["email"], "name": user["display_name"],
             "role": user["role"], "must_change_password": bool(user["must_change_password"]),
+            "must_enroll_mfa": bool(user["must_enroll_mfa"]),
         }
 
     @app.post("/api/account/password")
@@ -505,6 +605,68 @@ def create_app(
             "tv_session", token, httponly=True, secure=os.getenv("TRUSTVAULT_COOKIE_SECURE") == "1",
             samesite="strict", max_age=SESSION_HOURS * 60 * 60, path="/",
         )
+        return {"ok": True}
+
+    @app.post("/api/account/mfa/enroll")
+    def enroll_mfa(
+        request: Request,
+        user: dict[str, str] = Depends(current_user),
+    ):
+        csrf_check(request)
+        if not production_mode:
+            raise HTTPException(status_code=404, detail="MFA enrollment is only available in production")
+        with connect(database_path) as connection:
+            row = connection.execute(
+                "SELECT mfa_secret_encrypted, mfa_enabled FROM users WHERE id = ?", (user["id"],)
+            ).fetchone()
+            if row["mfa_enabled"]:
+                raise HTTPException(status_code=409, detail="MFA is already enabled")
+            if row["mfa_secret_encrypted"]:
+                secret = fernet.decrypt(row["mfa_secret_encrypted"]).decode()
+            else:
+                secret = pyotp.random_base32()
+                connection.execute(
+                    "UPDATE users SET mfa_secret_encrypted = ? WHERE id = ?",
+                    (fernet.encrypt(secret.encode()), user["id"]),
+                )
+                append_audit(connection, user["id"], user["email"], "auth.mfa_enrollment_started")
+        return {
+            "secret": secret,
+            "provisioning_uri": pyotp.TOTP(secret).provisioning_uri(
+                name=user["email"], issuer_name="TrustVault"
+            ),
+        }
+
+    @app.post("/api/account/mfa/confirm")
+    def confirm_mfa(
+        payload: MfaConfirmation,
+        request: Request,
+        user: dict[str, str] = Depends(current_user),
+    ):
+        csrf_check(request)
+        if not production_mode:
+            raise HTTPException(status_code=404, detail="MFA enrollment is only available in production")
+        code = payload.code.strip().replace(" ", "")
+        failed = False
+        with connect(database_path) as connection:
+            row = connection.execute(
+                "SELECT mfa_secret_encrypted, mfa_enabled FROM users WHERE id = ?", (user["id"],)
+            ).fetchone()
+            if row["mfa_enabled"] or not row["mfa_secret_encrypted"]:
+                failed = True
+            else:
+                secret = fernet.decrypt(row["mfa_secret_encrypted"]).decode()
+                if len(code) != 6 or not code.isdecimal() or not pyotp.TOTP(secret).verify(code, valid_window=1):
+                    append_audit(connection, user["id"], user["email"], "auth.mfa_enrollment_failed")
+                    failed = True
+                else:
+                    connection.execute(
+                        "UPDATE users SET mfa_enabled = 1, must_enroll_mfa = 0 WHERE id = ?",
+                        (user["id"],),
+                    )
+                    append_audit(connection, user["id"], user["email"], "auth.mfa_enabled")
+        if failed:
+            raise HTTPException(status_code=422, detail="Authenticator code is invalid")
         return {"ok": True}
 
     @app.get("/api/documents")

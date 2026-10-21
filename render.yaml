@@ -24,9 +24,9 @@ services:
         value: /var/data
       - key: TRUSTVAULT_ENCRYPTION_KEY
         generateValue: true
+      - key: TRUSTVAULT_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
       - key: TRUSTVAULT_BOOTSTRAP_ADMIN_EMAIL
         sync: false
       - key: TRUSTVAULT_BOOTSTRAP_ADMIN_NAME
-        sync: false
-      - key: TRUSTVAULT_BOOTSTRAP_ADMIN_PASSWORD
         sync: false

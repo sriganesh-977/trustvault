@@ -220,6 +220,11 @@ button { color: inherit; }
 .share-revoke { border: 0; background: none; color: #ae6251; cursor: pointer; font-size: 10px; }
 .share-revoke:hover { text-decoration: underline; }
 .no-shares { padding: 15px 0; color: #909b94; font-size: 10px; }
+.mfa-instructions { margin: -5px 0 16px; color: #6f7c75; font-size: 11px; line-height: 1.65; }
+.mfa-secret-box { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 12px; border: 1px solid #dce7df; background: #edf4ef; }
+.mfa-secret-box > span { grid-column: 1 / -1; color: #89958e; font: 9px var(--mono); letter-spacing: .07em; }
+.mfa-secret-box code { overflow-wrap: anywhere; color: #254d3a; font: 500 13px var(--mono); }
+.mfa-secret-box .text-button { justify-self: end; color: #397858; }
 .toast-region { position: fixed; z-index: 5; right: 22px; bottom: 20px; display: grid; gap: 8px; }
 .toast { min-width: 220px; max-width: 360px; padding: 12px 15px; border-left: 3px solid #5a9c7d; background: #20342d; color: #f4f8f4; box-shadow: 0 8px 30px rgba(18,38,29,.22); font-size: 11px; animation: toast-in .2s ease-out; }
 .toast.error { border-left-color: #d47b64; }
