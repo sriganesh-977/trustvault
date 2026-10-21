@@ -6,6 +6,7 @@ TrustVault is a local secure-document-sharing prototype. Its core boundary is se
 
 ```powershell
 python -m pip install -r requirements.txt
+$env:TRUSTVAULT_DEMO = "1"
 python -m uvicorn app:app --reload
 ```
 
@@ -35,3 +36,16 @@ The tests cover document-level authorization, direct grants, revocation, denied-
 - The chain detects changes within the retained database, but it is not independent proof against a privileged operator who can rewrite the database and recompute hashes. Production deployments should anchor signed checkpoints to separately controlled, immutable storage.
 - This prototype is not production-ready identity or key management: it has seeded demo credentials, no MFA, no rate limiting, no organization/tenant isolation, and no external identity provider. Use HTTPS, managed secrets and key rotation, backups, malware scanning, rate limits, account provisioning and offboarding controls, monitoring, and independent audit anchoring before handling real documents.
 - Set `TRUSTVAULT_COOKIE_SECURE=1` behind HTTPS. Do not expose the development server directly to the internet.
+
+## Render production preparation
+
+The `render.yaml` Blueprint creates one paid web instance with a persistent disk for the SQLite database and encrypted file payloads. Render generates the Fernet key. During Blueprint setup, provide the administrator email, display name, and a unique random bootstrap password directly in Render's secure setup form; do not send secrets in chat or commit them.
+
+Before creating the service:
+
+1. Complete an independent security review. This prototype still lacks MFA/SSO, rate limiting, invitations and password reset, tenant isolation, malware scanning, tested backups/key rotation, and independently anchored audit records. Do not store real confidential documents until those controls and your legal/compliance requirements are addressed.
+2. In Render, create a Blueprint from this private GitHub repository and review the paid compute and persistent disk costs shown for your account.
+3. Enter the bootstrap admin email/name and a unique random password (at least 20 characters) when prompted. Sign in, use the forced password-change screen to replace the bootstrap password, then remove `TRUSTVAULT_BOOTSTRAP_ADMIN_PASSWORD` from the service environment and redeploy.
+4. Back up the database and encryption key separately. Losing the key makes encrypted files unrecoverable. Rotating it requires a deliberate data re-encryption migration.
+
+Production startup fails if demo mode is enabled, secure cookies or the managed encryption key are missing, a seeded demo account exists, or an initial admin cannot be provisioned. `GET /healthz` is the Render health-check endpoint.

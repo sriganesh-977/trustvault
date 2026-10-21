@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: trustvault
+    runtime: python
+    plan: 0.5c-512mb
+    branch: main
+    numInstances: 1
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    disk:
+      name: trustvault-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: TRUSTVAULT_ENV
+        value: production
+      - key: TRUSTVAULT_DEMO
+        value: "0"
+      - key: TRUSTVAULT_COOKIE_SECURE
+        value: "1"
+      - key: TRUSTVAULT_DATA_DIR
+        value: /var/data
+      - key: TRUSTVAULT_ENCRYPTION_KEY
+        generateValue: true
+      - key: TRUSTVAULT_BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: TRUSTVAULT_BOOTSTRAP_ADMIN_NAME
+        sync: false
+      - key: TRUSTVAULT_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false

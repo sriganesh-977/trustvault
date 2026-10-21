@@ -15,7 +15,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, TypeAdapter
 
 
 ROOT = Path(__file__).resolve().parent
@@ -102,6 +102,7 @@ def initialize_database(database_path: Path, fernet: Fernet, seed: bool) -> None
                 display_name TEXT NOT NULL,
                 role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
                 password_hash TEXT NOT NULL,
+                must_change_password INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS sessions (
@@ -151,6 +152,11 @@ def initialize_database(database_path: Path, fernet: Fernet, seed: bool) -> None
             END;
             """
         )
+        user_columns = {row["name"] for row in connection.execute("PRAGMA table_info(users)")}
+        if "must_change_password" not in user_columns:
+            connection.execute(
+                "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
+            )
         if not seed or connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
             return
 
@@ -259,25 +265,87 @@ def verify_audit_chain(connection: sqlite3.Connection) -> tuple[bool, int]:
     return True, len(rows)
 
 
+def bootstrap_admin(database_path: Path, production_mode: bool) -> None:
+    with connect(database_path) as connection:
+        existing_admin = connection.execute(
+            "SELECT 1 FROM users WHERE role = 'admin' LIMIT 1"
+        ).fetchone()
+        if existing_admin:
+            return
+        user_count = connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        if not production_mode:
+            return
+        if user_count:
+            raise RuntimeError("Production database has users but no administrator; provision an admin before startup.")
+
+        email = os.getenv("TRUSTVAULT_BOOTSTRAP_ADMIN_EMAIL", "").strip()
+        name = os.getenv("TRUSTVAULT_BOOTSTRAP_ADMIN_NAME", "").strip()
+        password = os.getenv("TRUSTVAULT_BOOTSTRAP_ADMIN_PASSWORD", "")
+        if not email or not name or not password:
+            raise RuntimeError(
+                "Set TRUSTVAULT_BOOTSTRAP_ADMIN_EMAIL, TRUSTVAULT_BOOTSTRAP_ADMIN_NAME, and "
+                "TRUSTVAULT_BOOTSTRAP_ADMIN_PASSWORD for the first production startup."
+            )
+        if len(password) < 20:
+            raise RuntimeError("The bootstrap administrator password must be at least 20 characters.")
+        try:
+            validated_email = str(TypeAdapter(EmailStr).validate_python(email)).lower()
+        except ValueError as error:
+            raise RuntimeError("TRUSTVAULT_BOOTSTRAP_ADMIN_EMAIL must be a valid email address.") from error
+        user_id = f"usr_{secrets.token_urlsafe(12)}"
+        connection.execute(
+            "INSERT INTO users (id, email, display_name, role, password_hash, must_change_password, created_at) "
+            "VALUES (?, ?, ?, 'admin', ?, 1, ?)",
+            (user_id, validated_email, name[:80], hash_password(password), timestamp()),
+        )
+        append_audit(connection, user_id, validated_email, "auth.admin_bootstrapped")
+
+
 class ShareRequest(BaseModel):
     email: EmailStr
     expires_at: datetime | None = None
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 def create_app(
     database_path: Path | str = DEFAULT_DB_PATH,
     data_dir: Path | str = DEFAULT_DATA_DIR,
-    seed: bool = True,
+    seed: bool | None = None,
     encryption_key: bytes | None = None,
 ) -> FastAPI:
+    production_mode = os.getenv("TRUSTVAULT_ENV", "development").lower() == "production"
+    if seed is None:
+        seed = os.getenv("TRUSTVAULT_DEMO", "0") == "1"
+    if production_mode:
+        if seed or os.getenv("TRUSTVAULT_DEMO", "0") == "1":
+            raise RuntimeError("Demo mode must be disabled in production.")
+        if os.getenv("TRUSTVAULT_COOKIE_SECURE") != "1":
+            raise RuntimeError("Set TRUSTVAULT_COOKIE_SECURE=1 in production.")
+        if not os.getenv("TRUSTVAULT_ENCRYPTION_KEY"):
+            raise RuntimeError("Set TRUSTVAULT_ENCRYPTION_KEY using a managed secret in production.")
+
     database_path = Path(database_path)
     data_dir = Path(data_dir)
     fernet = load_fernet(data_dir, encryption_key)
     initialize_database(database_path, fernet, seed)
+    if production_mode:
+        with connect(database_path) as connection:
+            seeded_account = connection.execute(
+                "SELECT 1 FROM users WHERE email IN (?, ?) LIMIT 1",
+                ("admin@trustvault.local", "maya@northstar.example"),
+            ).fetchone()
+            if seeded_account:
+                raise RuntimeError("Demo accounts exist in the production database; migrate to a clean database first.")
+        bootstrap_admin(database_path, production_mode=True)
 
     app = FastAPI(title="TrustVault", docs_url=None, redoc_url=None)
     app.state.database_path = database_path
     app.state.fernet = fernet
+    app.state.demo_mode = seed
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -291,6 +359,8 @@ def create_app(
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if production_mode:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -307,12 +377,15 @@ def create_app(
             raise HTTPException(status_code=401, detail="Sign in required")
         with connect(database_path) as connection:
             row = connection.execute(
-                "SELECT u.id, u.email, u.display_name, u.role, s.expires_at "
+                "SELECT u.id, u.email, u.display_name, u.role, u.must_change_password, s.expires_at "
                 "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
                 (hashlib.sha256(token.encode()).hexdigest(),),
             ).fetchone()
             if not row or row["expires_at"] <= timestamp():
                 raise HTTPException(status_code=401, detail="Session expired")
+            allowed_during_password_change = {"/api/me", "/api/account/password", "/api/logout"}
+            if row["must_change_password"] and request.url.path not in allowed_during_password_change:
+                raise HTTPException(status_code=403, detail="Change your initial password before continuing")
             return dict(row)
 
     def require_admin(user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
@@ -341,6 +414,18 @@ def create_app(
         )
         return {"csrf_token": token}
 
+    @app.get("/api/config")
+    def public_config() -> dict[str, bool]:
+        return {"demo_mode": seed}
+
+    @app.get("/healthz")
+    def health_check() -> dict[str, str]:
+        with connect(database_path) as connection:
+            connection.execute("SELECT 1").fetchone()
+        probe = fernet.encrypt(b"health-check")
+        fernet.decrypt(probe)
+        return {"status": "ok"}
+
     @app.post("/api/login")
     def login(request: Request, response: Response, payload: dict[str, str]):
         csrf_check(request)
@@ -363,7 +448,10 @@ def create_app(
                     "tv_session", token, httponly=True, secure=os.getenv("TRUSTVAULT_COOKIE_SECURE") == "1",
                     samesite="strict", max_age=SESSION_HOURS * 60 * 60, path="/",
                 )
-                return {"id": user["id"], "email": user["email"], "name": user["display_name"], "role": user["role"]}
+                return {
+                    "id": user["id"], "email": user["email"], "name": user["display_name"],
+                    "role": user["role"], "must_change_password": bool(user["must_change_password"]),
+                }
         raise HTTPException(status_code=401, detail="Email or password is incorrect")
 
     @app.post("/api/logout")
@@ -380,7 +468,44 @@ def create_app(
 
     @app.get("/api/me")
     def me(user: dict[str, str] = Depends(current_user)):
-        return {"id": user["id"], "email": user["email"], "name": user["display_name"], "role": user["role"]}
+        return {
+            "id": user["id"], "email": user["email"], "name": user["display_name"],
+            "role": user["role"], "must_change_password": bool(user["must_change_password"]),
+        }
+
+    @app.post("/api/account/password")
+    def change_password(
+        payload: PasswordChangeRequest,
+        request: Request,
+        response: Response,
+        user: dict[str, str] = Depends(current_user),
+    ):
+        csrf_check(request)
+        if len(payload.new_password) < 20:
+            raise HTTPException(status_code=422, detail="New passwords must be at least 20 characters")
+        if secrets.compare_digest(payload.current_password, payload.new_password):
+            raise HTTPException(status_code=422, detail="New password must differ from the current password")
+        token = secrets.token_urlsafe(32)
+        expires_at = timestamp(utc_now() + timedelta(hours=SESSION_HOURS))
+        with connect(database_path) as connection:
+            row = connection.execute("SELECT password_hash FROM users WHERE id = ?", (user["id"],)).fetchone()
+            if not row or not verify_password(payload.current_password, row["password_hash"]):
+                raise HTTPException(status_code=403, detail="Current password is incorrect")
+            connection.execute(
+                "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
+                (hash_password(payload.new_password), user["id"]),
+            )
+            connection.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+            connection.execute(
+                "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+                (hashlib.sha256(token.encode()).hexdigest(), user["id"], expires_at),
+            )
+            append_audit(connection, user["id"], user["email"], "auth.password_changed")
+        response.set_cookie(
+            "tv_session", token, httponly=True, secure=os.getenv("TRUSTVAULT_COOKIE_SECURE") == "1",
+            samesite="strict", max_age=SESSION_HOURS * 60 * 60, path="/",
+        )
+        return {"ok": True}
 
     @app.get("/api/documents")
     def list_documents(user: dict[str, str] = Depends(current_user)):

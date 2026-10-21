@@ -84,6 +84,12 @@ function renderApp() {
   document.querySelector('[data-view="activity"]').hidden = state.user.role !== "admin";
   byId("view-all-activity").hidden = state.user.role !== "admin";
   byId("audit-integrity-button").hidden = state.user.role !== "admin";
+  const passwordDialog = byId("security-dialog");
+  const forcedPasswordChange = state.user.must_change_password;
+  passwordDialog.querySelectorAll(".close-dialog, #password-cancel").forEach((button) => {
+    button.hidden = forcedPasswordChange;
+  });
+  if (forcedPasswordChange && !passwordDialog.open) passwordDialog.showModal();
   if (state.user.role !== "admin" && document.querySelector('[data-view="activity"]').classList.contains("is-active")) setView("documents");
 }
 
@@ -186,6 +192,10 @@ async function loadDashboard() {
   renderAudit();
 }
 
+byId("security-dialog").addEventListener("cancel", (event) => {
+  if (state.user?.must_change_password) event.preventDefault();
+});
+
 function setView(view) {
   const showAudit = view === "activity" && state.user.role === "admin";
   byId("documents-view").hidden = showAudit;
@@ -243,10 +253,12 @@ async function downloadDocument(documentId) {
 
 async function bootstrap() {
   await refreshCsrf();
+  const config = await api("/api/config");
+  byId("demo-access").hidden = !config.demo_mode;
   try {
     state.user = await api("/api/me");
     renderApp();
-    await loadDashboard();
+    if (!state.user.must_change_password) await loadDashboard();
   } catch (error) {
     if (error.message.includes("Failed to fetch")) throw error;
     renderLogin();
@@ -264,7 +276,7 @@ byId("login-form").addEventListener("submit", async (event) => {
       body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
     });
     renderApp();
-    await loadDashboard();
+    if (!state.user.must_change_password) await loadDashboard();
   } catch (error) {
     byId("login-error").textContent = error.message;
   }
@@ -283,6 +295,29 @@ byId("logout-button").addEventListener("click", async () => {
     state.user = null;
     await refreshCsrf();
     renderLogin();
+  } catch (error) { toast(error.message, true); }
+});
+
+byId("account-button").addEventListener("click", () => byId("security-dialog").showModal());
+byId("password-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const currentPassword = byId("current-password").value;
+  const newPassword = byId("new-password").value;
+  if (newPassword !== byId("confirm-password").value) {
+    toast("The new passwords do not match.", true);
+    return;
+  }
+  try {
+    await api("/api/account/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+    state.user.must_change_password = false;
+    byId("security-dialog").close();
+    event.currentTarget.reset();
+    toast("Password updated. Other sessions were signed out.");
+    await loadDashboard();
   } catch (error) { toast(error.message, true); }
 });
 
@@ -337,7 +372,9 @@ byId("share-form").addEventListener("submit", async (event) => {
 for (const dialog of document.querySelectorAll("dialog")) {
   dialog.querySelectorAll(".close-dialog").forEach((button) => button.addEventListener("click", () => dialog.close()));
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) dialog.close();
+    if (event.target === dialog && !(dialog.id === "security-dialog" && state.user?.must_change_password)) {
+      dialog.close();
+    }
   });
 }
 

@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4f5f2">
   <title>TrustVault · Secure document workspace</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/styles.css?v=2">
-  <script src="/app.js?v=2" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=3">
+  <script src="/app.js?v=3" defer></script>
 </head>
 <body>
   <main id="login-view" class="login-shell" hidden>
@@ -24,7 +24,7 @@
         <p id="login-error" class="form-error" role="alert"></p>
         <button class="button button-primary login-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
       </form>
-      <div class="demo-access">
+      <div id="demo-access" class="demo-access" hidden>
         <div><span class="status-dot"></span><strong>DEMO WORKSPACE</strong></div>
         <button type="button" class="text-button" data-demo="admin">Use administrator</button>
         <button type="button" class="text-button" data-demo="member">Use member account</button>
@@ -43,7 +43,7 @@
       </nav>
       <div class="sidebar-bottom">
         <div class="encryption-note"><span class="lock-glyph">◆</span><div><strong>Encrypted at rest</strong><small>Document payloads protected</small></div></div>
-        <button id="account-button" class="account-button"><span id="account-avatar" class="avatar">JL</span><span class="account-copy"><strong id="account-name">Jordan Lee</strong><small id="account-role">Administrator</small></span><span class="account-more">···</span></button>
+        <button id="account-button" class="account-button" type="button" aria-label="Manage account security" title="Manage account security"><span id="account-avatar" class="avatar">JL</span><span class="account-copy"><strong id="account-name">Jordan Lee</strong><small id="account-role">Administrator</small></span><span class="account-more">···</span></button>
         <button id="logout-button" class="logout-button" aria-label="Sign out" title="Sign out">Sign out <span aria-hidden="true">↗</span></button>
       </div>
     </aside>
@@ -119,6 +119,17 @@
       <div id="share-list" class="share-list"></div>
       <div class="modal-actions"><button type="button" class="button button-secondary close-dialog">Done</button></div>
     </div>
+  </dialog>
+
+  <dialog id="security-dialog" class="modal-dialog">
+    <form id="password-form" class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">ACCOUNT SECURITY</p><h2>Change password</h2></div><button type="button" class="icon-button close-dialog" aria-label="Close">×</button></div>
+      <label for="current-password">Current password</label><input id="current-password" type="password" autocomplete="current-password" required>
+      <label for="new-password">New password <span>20 characters minimum</span></label><input id="new-password" type="password" autocomplete="new-password" minlength="20" required>
+      <label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="20" required>
+      <p id="password-note" class="modal-note"><span class="lock-glyph">◆</span> Changing your password signs out all other sessions.</p>
+      <div class="modal-actions"><button id="password-cancel" type="button" class="button button-secondary close-dialog">Cancel</button><button class="button button-primary" type="submit">Update password</button></div>
+    </form>
   </dialog>
 
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
