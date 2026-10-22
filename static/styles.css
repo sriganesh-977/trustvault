@@ -27,8 +27,8 @@ button, input { font: inherit; }
 button { color: inherit; }
 [hidden] { display: none !important; }
 
-.login-shell { min-height: 100vh; display: grid; grid-template-columns: 1fr minmax(340px, 500px) 1fr; align-items: center; padding: 50px 7vw; background: radial-gradient(ellipse at 13% 100%, rgba(184,225,211,.48), transparent 35%), linear-gradient(120deg, #eff3ef, #f9f7f0 62%, #edf3ef); position: relative; overflow: hidden; }
-.login-shell::after { content: ''; position: absolute; inset: 0 0 0 56%; pointer-events: none; opacity: .25; background-image: linear-gradient(90deg, transparent 98%, #9baaa4 100%), linear-gradient(0deg, transparent 98%, #9baaa4 100%); background-size: 56px 56px; mask-image: linear-gradient(90deg, transparent, #000); }
+.login-shell { min-height: 100vh; display: grid; grid-template-columns: 1fr minmax(340px, 500px) 1fr; align-items: center; padding: 50px 7vw; background: var(--paper); position: relative; overflow: hidden; }
+.login-shell::after { display: none; }
 .login-brand { position: absolute; top: 44px; left: 7vw; display: flex; gap: 12px; align-items: center; letter-spacing: .12em; font: 500 12px var(--mono); }
 .brand-mark { width: 32px; height: 32px; display: inline-grid; place-items: center; background: var(--mint-bright); color: var(--deep); border-radius: 9px 2px 9px 2px; font: 600 19px var(--serif); letter-spacing: 0; }
 .login-panel { z-index: 1; grid-column: 2; width: 100%; max-width: 430px; padding: 48px 46px; background: rgba(255,255,255,.82); border: 1px solid rgba(23,36,33,.08); box-shadow: 0 28px 90px rgba(28,48,41,.09); }
