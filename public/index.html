@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustVault - Cryptographically Audited Document Vault</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation Bar -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <span class="brand-icon">🔒</span>
+        <div class="brand-text">
+          <span class="brand-title">TrustVault</span>
+          <span class="brand-subtitle">Cryptographic Audit & Access Control</span>
+        </div>
+      </div>
+      <div id="nav-user-panel" class="nav-user-panel hidden">
+        <span id="user-badge" class="badge"></span>
+        <span id="user-email" class="user-email"></span>
+        <button id="btn-logout" class="btn btn-outline btn-sm">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Global Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Main Container -->
+    <main class="main-container">
+      <!-- AUTH VIEW (Login / Register) -->
+      <section id="auth-section" class="card auth-card">
+        <div class="auth-header">
+          <h2>Welcome to TrustVault</h2>
+          <p>Zero-trust, tamper-evident document sharing with cryptographic audit chains.</p>
+        </div>
+
+        <div class="tabs">
+          <button id="tab-login" class="tab-btn active">Sign In</button>
+          <button id="tab-register" class="tab-btn">Register</button>
+        </div>
+
+        <!-- Quick Demo Switcher -->
+        <div class="demo-box">
+          <span class="demo-title">⚡ Quick Sign-In (Demo Accounts):</span>
+          <div class="demo-buttons">
+            <button class="btn btn-sm btn-secondary" onclick="quickLogin('admin@trustvault.test', 'Admin-Demo-Pass-1')">👑 Admin</button>
+            <button class="btn btn-sm btn-secondary" onclick="quickLogin('owner@trustvault.test', 'Owner-Demo-Pass-1')">📁 Owner</button>
+            <button class="btn btn-sm btn-secondary" onclick="quickLogin('viewer@trustvault.test', 'Viewer-Demo-Pass-1')">👁️ Viewer</button>
+          </div>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="form">
+          <div class="form-group">
+            <label for="login-email">Email Address</label>
+            <input type="email" id="login-email" required placeholder="user@example.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" required placeholder="••••••••••••" autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="form hidden">
+          <div class="form-group">
+            <label for="reg-name">Full Name</label>
+            <input type="text" id="reg-name" required placeholder="Jane Doe" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="reg-email">Email Address</label>
+            <input type="email" id="reg-email" required placeholder="jane@example.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="reg-password">Password (10+ characters)</label>
+            <input type="password" id="reg-password" minlength="10" required placeholder="At least 10 characters" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+        </form>
+      </section>
+
+      <!-- DASHBOARD VIEW -->
+      <section id="dashboard-section" class="dashboard-section hidden">
+        <!-- Navigation Tabs (Documents vs Admin) -->
+        <div class="dashboard-tabs">
+          <button id="tab-documents" class="tab-btn active">📁 My Documents</button>
+          <button id="tab-admin" class="tab-btn hidden">🛡️ Security Admin Center</button>
+        </div>
+
+        <!-- DOCUMENTS VIEW -->
+        <div id="view-documents" class="view-pane">
+          <!-- Upload Box (for owners) -->
+          <div id="upload-panel" class="card upload-card hidden">
+            <div class="card-header">
+              <h3>Upload Secure Document</h3>
+              <span class="hint">Role: Document Owner</span>
+            </div>
+            <form id="upload-form" class="upload-form">
+              <div class="form-row">
+                <div class="form-group flex-2">
+                  <label for="upload-file">Select File (PDF, PNG, JPG, DOCX, XLSX, TXT - max 10MB)</label>
+                  <input type="file" id="upload-file" required>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="upload-name">Display Name (optional)</label>
+                  <input type="text" id="upload-name" placeholder="Leave blank to use filename">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="upload-category">Category</label>
+                  <select id="upload-category">
+                    <option value="general">General</option>
+                    <option value="finance">Finance</option>
+                    <option value="legal">Legal</option>
+                    <option value="hr">HR</option>
+                    <option value="confidential">Confidential</option>
+                  </select>
+                </div>
+                <div class="form-group flex-0 align-end">
+                  <button type="submit" class="btn btn-success">Upload Document</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- Search & Filter Bar -->
+          <div class="card search-card">
+            <div class="search-bar">
+              <input type="text" id="search-q" placeholder="🔍 Search documents by title..." class="search-input">
+              <select id="search-category" class="filter-select">
+                <option value="">All Categories</option>
+                <option value="general">General</option>
+                <option value="finance">Finance</option>
+                <option value="legal">Legal</option>
+                <option value="hr">HR</option>
+                <option value="confidential">Confidential</option>
+              </select>
+              <input type="text" id="search-owner" placeholder="Filter by owner..." class="filter-input">
+              <button id="btn-search" class="btn btn-secondary">Filter</button>
+              <button id="btn-reset-search" class="btn btn-outline">Reset</button>
+            </div>
+          </div>
+
+          <!-- Document Table -->
+          <div class="card table-card">
+            <div class="card-header flex-between">
+              <h3>Accessible Documents</h3>
+              <span id="doc-count-badge" class="badge badge-info">0 documents</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Document</th>
+                    <th>Category</th>
+                    <th>Size</th>
+                    <th>Owner</th>
+                    <th>Your Access</th>
+                    <th>Last Modified</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="documents-tbody">
+                  <tr><td colspan="7" class="text-center text-muted">Loading documents...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ADMIN VIEW -->
+        <div id="view-admin" class="view-pane hidden">
+          <!-- Security Alerts & Chain Health Bar -->
+          <div class="admin-health-grid">
+            <div class="card health-card">
+              <h4>🔗 Tamper-Evident Hash Chain</h4>
+              <div id="chain-status-display" class="chain-status-box">
+                <div class="status-indicator-row">
+                  <span id="chain-indicator" class="dot dot-unknown"></span>
+                  <span id="chain-status-text" class="status-text">Checking integrity...</span>
+                </div>
+                <div class="chain-stats">
+                  <div>Verified Entries: <strong id="chain-entries">-</strong></div>
+                  <div>Head Hash: <code id="chain-head">-</code></div>
+                </div>
+                <div class="button-row">
+                  <button id="btn-verify-chain" class="btn btn-primary btn-sm">Verify Entire Chain</button>
+                  <button id="btn-anchor-chain" class="btn btn-secondary btn-sm">Create External Anchor</button>
+                </div>
+                <div id="anchor-status-box" class="anchor-status-box"></div>
+              </div>
+            </div>
+
+            <div class="card health-card">
+              <h4>🚨 24-Hour Security Alerts</h4>
+              <div class="alerts-grid">
+                <div class="alert-stat">
+                  <div class="stat-number" id="alert-denials">0</div>
+                  <div class="stat-label">Repeated Access Denials</div>
+                </div>
+                <div class="alert-stat">
+                  <div class="stat-number" id="alert-logins">0</div>
+                  <div class="stat-label">Repeated Failed Logins</div>
+                </div>
+                <div class="alert-stat">
+                  <div class="stat-number" id="alert-perms">0</div>
+                  <div class="stat-label">Permission Changes</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Admin Sub-tabs -->
+          <div class="admin-subtabs">
+            <button id="subtab-audit" class="tab-btn active">📜 Audit Log</button>
+            <button id="subtab-users" class="tab-btn">👥 User Management</button>
+            <button id="subtab-docmeta" class="tab-btn">📑 Document Metadata</button>
+          </div>
+
+          <!-- Audit Log Pane -->
+          <div id="admin-pane-audit" class="admin-subpane">
+            <div class="card table-card">
+              <div class="card-header flex-between">
+                <h3>Cryptographic Audit Trail (Append-Only)</h3>
+                <div class="audit-filters">
+                  <select id="audit-filter-action" class="filter-select-sm">
+                    <option value="">All Actions</option>
+                    <option value="login">login</option>
+                    <option value="document.upload">document.upload</option>
+                    <option value="document.download">document.download</option>
+                    <option value="document.edit">document.edit</option>
+                    <option value="document.delete">document.delete</option>
+                    <option value="permission.grant">permission.grant</option>
+                    <option value="permission.revoke">permission.revoke</option>
+                    <option value="route.forbidden">route.forbidden</option>
+                  </select>
+                  <select id="audit-filter-outcome" class="filter-select-sm">
+                    <option value="">All Outcomes</option>
+                    <option value="allowed">allowed</option>
+                    <option value="denied">denied</option>
+                    <option value="info">info</option>
+                  </select>
+                  <button id="btn-refresh-audit" class="btn btn-sm btn-outline">Refresh</button>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Seq</th>
+                      <th>Timestamp</th>
+                      <th>Actor</th>
+                      <th>Action</th>
+                      <th>Outcome</th>
+                      <th>IP</th>
+                      <th>Details</th>
+                      <th>SHA-256 Hash</th>
+                    </tr>
+                  </thead>
+                  <tbody id="audit-tbody">
+                    <tr><td colspan="8" class="text-center text-muted">Loading audit entries...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Users Pane -->
+          <div id="admin-pane-users" class="admin-subpane hidden">
+            <div class="card table-card">
+              <div class="card-header">
+                <h3>User Accounts & Role Permissions</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Registered</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="users-tbody">
+                    <tr><td colspan="7" class="text-center text-muted">Loading users...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Document Metadata Pane -->
+          <div id="admin-pane-docmeta" class="admin-subpane hidden">
+            <div class="card table-card">
+              <div class="card-header">
+                <h3>Vault Document Catalog (Metadata Only - Content Restricted)</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Category</th>
+                      <th>Size</th>
+                      <th>Owner</th>
+                      <th>Active Grants</th>
+                      <th>Created</th>
+                      <th>Deleted</th>
+                    </tr>
+                  </thead>
+                  <tbody id="docmeta-tbody">
+                    <tr><td colspan="8" class="text-center text-muted">Loading metadata...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- MODALS -->
+    <!-- Grants Modal -->
+    <div id="modal-grants" class="modal hidden">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3>Manage Document Grants</h3>
+          <button class="btn-close" onclick="closeModal('modal-grants')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="doc-label">Document: <strong id="grants-doc-name">-</strong></p>
+
+          <form id="grant-form" class="form-inline">
+            <input type="email" id="grant-email" required placeholder="user@trustvault.test" class="flex-2">
+            <select id="grant-level" class="flex-1">
+              <option value="read">read (view & download)</option>
+              <option value="edit">edit (also rename & replace)</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Grant Access</button>
+          </form>
+
+          <h4 class="mt-2">Active Grants</h4>
+          <table class="data-table mt-1">
+            <thead>
+              <tr>
+                <th>User Email</th>
+                <th>Level</th>
+                <th>Granted At</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="grants-tbody">
+              <tr><td colspan="4" class="text-muted text-center">Loading grants...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Version History & Rollback Modal -->
+    <div id="modal-versions" class="modal hidden">
+      <div class="modal-content card modal-lg">
+        <div class="modal-header">
+          <h3>Document Version History & Recovery</h3>
+          <button class="btn-close" onclick="closeModal('modal-versions')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="doc-label">Document: <strong id="versions-doc-name">-</strong></p>
+          <div class="table-responsive mt-1">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Version</th>
+                  <th>Created At</th>
+                  <th>Created By</th>
+                  <th>Size</th>
+                  <th>SHA-256 Hash</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="versions-tbody">
+                <tr><td colspan="6" class="text-muted text-center">Loading versions...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Document Modal -->
+    <div id="modal-edit" class="modal hidden">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3>Edit Document Metadata</h3>
+          <button class="btn-close" onclick="closeModal('modal-edit')">✕</button>
+        </div>
+        <div class="modal-body">
+          <form id="edit-doc-form" class="form">
+            <input type="hidden" id="edit-doc-id">
+            <div class="form-group">
+              <label for="edit-doc-name">Document Name</label>
+              <input type="text" id="edit-doc-name" required maxlength="120">
+            </div>
+            <div class="form-group">
+              <label for="edit-doc-category">Category</label>
+              <select id="edit-doc-category">
+                <option value="general">General</option>
+                <option value="finance">Finance</option>
+                <option value="legal">Legal</option>
+                <option value="hr">HR</option>
+                <option value="confidential">Confidential</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Save Changes</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Replace Content Modal -->
+    <div id="modal-replace" class="modal hidden">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3>Replace Content (Creates New Version)</h3>
+          <button class="btn-close" onclick="closeModal('modal-replace')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="doc-label">Document: <strong id="replace-doc-name">-</strong></p>
+          <form id="replace-content-form" class="form">
+            <input type="hidden" id="replace-doc-id">
+            <div class="form-group">
+              <label for="replace-file">Select Replacement File (content verified by magic bytes)</label>
+              <input type="file" id="replace-file" required>
+            </div>
+            <button type="submit" class="btn btn-warning btn-block">Upload & Create New Version</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

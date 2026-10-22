@@ -1,0 +1,23 @@
+{
+  "name": "trustvault",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "seed": "node src/seed.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "express": "^4.22.3",
+    "multer": "^2.4.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
+  }
+}

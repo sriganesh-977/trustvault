@@ -1,9 +1,4 @@
-__pycache__/
-.pytest_cache/
-*.py[cod]
+node_modules/
 data/
-.venv/
-.vscode/
-.env
-.env.*
-!.env.example
+*.db
+*.db-*
