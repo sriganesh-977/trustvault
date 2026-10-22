@@ -1,16 +1,16 @@
 :root {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --bg-primary: #f4f5f2;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e9eeea;
+  --text-primary: #172421;
+  --text-secondary: #52625c;
+  --text-muted: #7d8985;
   --primary: #3b82f6;
   --primary-hover: #2563eb;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --border: #334155;
+  --border: #dce3dd;
   --border-focus: #60a5fa;
   --radius: 8px;
   --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
@@ -25,6 +25,7 @@
 
 body {
   background-color: var(--bg-primary);
+  background-image: none;
   color: var(--text-primary);
   min-height: 100vh;
   display: flex;
@@ -56,7 +57,7 @@ body {
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: var(--text-primary);
   display: block;
 }
 
