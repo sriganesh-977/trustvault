@@ -562,3 +562,19 @@ input:focus, select:focus { border-color: #4d9a78; box-shadow: 0 0 0 3px rgba(77
 .modal { background: rgba(23, 36, 33, 0.42); backdrop-filter: blur(3px); }
 .modal-content { border-radius: 12px; }
 .toast { border-radius: 8px; color: #172421; background: #fff; border: 1px solid #dce5de; border-left: 4px solid var(--primary); box-shadow: 0 12px 28px rgba(23, 36, 33, 0.14); }
+.auth-card { padding: 2.25rem; border-top: 4px solid #2d7b5b; }
+.auth-header { margin-bottom: 2rem; }
+.auth-header h2 { font-weight: 750; line-height: 1.1; }
+.auth-header p { max-width: 34rem; margin-inline: auto; }
+.tabs, .dashboard-tabs, .admin-subtabs { gap: 0.25rem; padding: 0.3rem; border: 1px solid #e2e8e3; border-radius: 9px; background: #f5f8f6; }
+.tab-btn { flex: 1; padding: 0.65rem 1rem; }
+.form-group label { color: #43524f; font-weight: 650; }
+.dashboard-tabs { margin-bottom: 1.5rem; }
+.dashboard-section > .card { margin-bottom: 1.25rem; }
+.upload-card .card-header { display: flex; align-items: center; justify-content: space-between; }
+.search-card { padding: 1rem; }
+.search-bar { align-items: center; }
+.search-bar .btn { white-space: nowrap; }
+.data-table td { color: #33443d; }
+.data-table td:first-child { color: #172421; font-weight: 600; }
+.modal-content { border: 1px solid #dce5de; }
