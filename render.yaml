@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: trustvault
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci
+    startCommand: node src/seed.js && node src/server.js
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: TRUST_PROXY
+        value: "1"

@@ -29,6 +29,7 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
       'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'" });
     next();
   });
+  app.get('/healthz', (req, res) => res.json({ status: 'ok', service: 'trustvault' }));
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD, files: 1, fields: 5 } });
 
   const log = (req, action, outcome, extra = {}) =>
