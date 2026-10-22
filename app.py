@@ -22,6 +22,7 @@ subprocess.run(["node", "src/seed.js"], check=False)
 PORT_NODE = int(os.environ.get("NODE_INTERNAL_PORT", 3001))
 node_env = os.environ.copy()
 node_env["PORT"] = str(PORT_NODE)
+node_env["DATA_DIR"] = os.environ.get("TRUSTVAULT_DATA_DIR", "data")
 
 print(f"[TrustVault] Starting Node.js backend on port {PORT_NODE}...")
 node_proc = subprocess.Popen(["node", "src/server.js"], env=node_env)
@@ -49,12 +50,12 @@ async def proxy_all(request: Request, path: str):
     target_path = "/" + path
     if request.url.query:
         target_path += f"?{request.url.query}"
-    
+
     headers = dict(request.headers)
     headers.pop("host", None)
-    
+
     body = await request.body()
-    
+
     try:
         req = client.build_request(
             method=request.method,
@@ -64,12 +65,12 @@ async def proxy_all(request: Request, path: str):
             cookies=request.cookies
         )
         resp = await client.send(req, stream=True)
-        
+
         resp_headers = dict(resp.headers)
         resp_headers.pop("content-encoding", None)
         resp_headers.pop("transfer-encoding", None)
         resp_headers.pop("content-length", None)
-        
+
         return StreamingResponse(
             resp.aiter_bytes(),
             status_code=resp.status_code,

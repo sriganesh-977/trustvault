@@ -1,0 +1,178 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f2">
+  <title>TrustVault ┬╖ Secure document workspace</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css?v=4">
+  <script src="/app.js?v=4" defer></script>
+</head>
+<body>
+  <main id="login-view" class="login-shell" hidden>
+    <div class="login-brand"><span class="brand-mark">T</span><span>TRUSTVAULT</span></div>
+    <section class="login-panel">
+      <p class="eyebrow">PRIVATE DOCUMENT WORKSPACE</p>
+      <h1>Access, by design.</h1>
+      <p class="login-copy">A precise record of every document shared and every file requested.</p>
+      <form id="login-form">
+        <label for="login-email">Work email</label>
+        <input id="login-email" name="email" type="email" autocomplete="username" required>
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        <div id="mfa-login-field" hidden>
+          <label for="login-mfa-code">Authenticator code</label>
+          <input id="login-mfa-code" name="mfa_code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6">
+        </div>
+        <p id="login-error" class="form-error" role="alert"></p>
+        <button class="button button-primary login-submit" type="submit">Sign in <span aria-hidden="true">ΓåÆ</span></button>
+      </form>
+      <div id="demo-access" class="demo-access" hidden>
+        <div><span class="status-dot"></span><strong>DEMO WORKSPACE</strong></div>
+        <button type="button" class="text-button" data-demo="admin">Use administrator</button>
+        <button type="button" class="text-button" data-demo="owner">Use document owner</button>
+        <button type="button" class="text-button" data-demo="editor">Use editor</button>
+        <button type="button" class="text-button" data-demo="member">Use member account</button>
+      </div>
+    </section>
+    <div class="login-aside"><span class="aside-rule"></span><span>EVERY FILE HAS A DOOR.<br>EVERY DOOR LEAVES A TRACE.</span><span class="aside-index">01 / 01</span></div>
+  </main>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="#documents" aria-label="TrustVault home"><span class="brand-mark">T</span><span>TRUSTVAULT</span></a>
+      <div class="workspace-label">WORKSPACE <span id="workspace-mode">DEMO</span></div>
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <button class="nav-item is-active" data-view="documents"><span class="nav-glyph">Γûñ</span>Documents <span id="nav-document-count" class="nav-count">0</span></button>
+        <button class="nav-item" data-view="activity"><span class="nav-glyph">Γù╖</span>Audit trail</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="encryption-note"><span class="lock-glyph">Γùå</span><div><strong>Encrypted at rest</strong><small>Document payloads protected</small></div></div>
+        <button id="account-button" class="account-button" type="button" aria-label="Manage account security" title="Manage account security"><span id="account-avatar" class="avatar">JL</span><span class="account-copy"><strong id="account-name">Jordan Lee</strong><small id="account-role">Administrator</small></span><span class="account-more">┬╖┬╖┬╖</span></button>
+        <button id="logout-button" class="logout-button" aria-label="Sign out" title="Sign out">Sign out <span aria-hidden="true">Γåù</span></button>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="breadcrumbs"><span>Workspace</span><span class="crumb-slash">/</span><strong id="breadcrumb-current">Documents</strong></div>
+        <div class="topbar-right"><span class="secure-indicator"><span class="status-dot"></span> SECURE SESSION</span><span id="topbar-date" class="topbar-date"></span></div>
+      </header>
+      <section id="documents-view" class="content-view">
+        <div class="page-heading">
+          <div><p class="eyebrow">CONTROLLED ACCESS <span class="eyebrow-line"></span></p><h1>Documents<span class="heading-period">.</span></h1><p class="page-subtitle">Files stay private until you grant access. Every request is recorded.</p></div>
+          <button id="upload-open" class="button button-primary"><span class="button-plus">+</span> Upload document</button>
+        </div>
+        <section class="metrics" aria-label="Workspace summary">
+          <article class="metric metric-ink"><div class="metric-label">TOTAL DOCUMENTS <span>01</span></div><div id="metric-total" class="metric-value">0</div><div class="metric-foot">In your workspace</div></article>
+          <article class="metric metric-cyan"><div class="metric-label">SHARED WITH YOU <span>02</span></div><div id="metric-shared" class="metric-value">0</div><div class="metric-foot">Direct grants only</div></article>
+          <article class="metric metric-amber"><div class="metric-label">ACTIVE GRANTS <span>03</span></div><div id="metric-grants" class="metric-value">0</div><div class="metric-foot">Across your documents</div></article>
+          <article class="metric metric-light"><div class="metric-label">LAST FILE REQUEST <span>04</span></div><div id="metric-last-access" class="metric-value metric-time">No requests</div><div class="metric-foot">Successful delivery recorded</div></article>
+        </section>
+        <div class="main-columns">
+          <section class="document-section">
+            <div class="section-toolbar">
+              <div class="tab-list" role="tablist" aria-label="Filter documents">
+                <button class="filter-tab is-selected" data-filter="all" role="tab" aria-selected="true">All files <span id="count-all">0</span></button>
+                <button class="filter-tab" data-filter="owned" role="tab" aria-selected="false">Owned</button>
+                <button class="filter-tab" data-filter="shared" role="tab" aria-selected="false">Shared with me</button>
+              </div>
+              <div class="document-search-tools">
+                <label class="search-box"><span aria-hidden="true">Γîò</span><input id="search-input" type="search" placeholder="Name or filename" aria-label="Find a document"><kbd>/</kbd></label>
+                <details class="more-filters"><summary>Filters</summary><div class="filter-panel">
+                  <label for="owner-filter">Owner</label><input id="owner-filter" type="search" placeholder="Name or email">
+                  <label for="category-filter">Category</label><input id="category-filter" type="search" placeholder="Exact category">
+                  <label for="date-from-filter">Created from</label><input id="date-from-filter" type="date">
+                  <label for="date-to-filter">Created to</label><input id="date-to-filter" type="date">
+                  <button id="clear-filters" type="button" class="text-button">Clear filters</button>
+                </div></details>
+              </div>
+            </div>
+            <div class="table-head"><span>DOCUMENT</span><span>ACCESS</span><span>SHARED</span><span>LAST REQUEST</span><span></span></div>
+            <div id="document-list" class="document-list" aria-live="polite"></div>
+            <div id="empty-state" class="empty-state" hidden><span class="empty-symbol">ΓÇö</span><strong>No documents found</strong><span>Upload a file or adjust your filters.</span></div>
+            <div class="list-foot"><span id="list-summary">0 documents</span><span class="privacy-foot"><span class="lock-glyph">Γùå</span> Access is checked at the file, not the folder.</span></div>
+          </section>
+          <aside class="activity-panel">
+            <div class="panel-heading"><div><p class="eyebrow">LIVE RECORD</p><h2>Recent activity</h2></div><button id="view-all-activity" class="icon-button" aria-label="View all activity" title="View all activity">Γåù</button></div>
+            <div id="recent-activity" class="activity-list"></div>
+            <button id="audit-integrity-button" class="integrity-card" type="button"><span class="integrity-icon">Γ£ô</span><span><strong id="integrity-label">Chain verified</strong><small id="integrity-detail">Checking event historyΓÇª</small></span><span class="integrity-arrow">Γåù</span></button>
+            <p class="panel-caption">Hash-linked events make edits detectable. A local demo database is not an external timestamp authority.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="activity-view" class="content-view audit-view" hidden>
+        <div class="page-heading"><div><p class="eyebrow">TAMPER-EVIDENT EVENT LOG <span class="eyebrow-line"></span></p><h1>Audit trail<span class="heading-period">.</span></h1><p class="page-subtitle">A verifiable sequence of sign-ins, grants, revocations and file requests.</p></div><button id="verify-audit-button" class="button button-secondary">Γå╗ Verify chain</button></div>
+        <div class="audit-summary"><div class="audit-summary-mark">Γ£ô</div><div><strong id="audit-status">Verifying event chain</strong><span id="audit-summary-detail">Each event includes the previous event hash.</span></div><span id="audit-event-total" class="audit-total">0 EVENTS</span></div>
+        <div class="audit-table-wrap"><div class="audit-table-head"><span>EVENT</span><span>ACTOR</span><span>DOCUMENT</span><span>TIME</span><span>EVENT HASH</span></div><div id="audit-list" class="audit-list"></div></div>
+        <p class="audit-caveat">Integrity check detects changes to stored events. For independent proof against a privileged database operator, export or anchor hashes to separately controlled storage.</p>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="upload-dialog" class="modal-dialog">
+    <form id="upload-form" class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">PRIVATE BY DEFAULT</p><h2>Add a document</h2></div><button type="button" class="icon-button close-dialog" aria-label="Close">├ù</button></div>
+      <label for="upload-title">Document name</label><input id="upload-title" name="title" maxlength="160" placeholder="e.g. Northstar services agreement" required>
+      <label for="upload-category">Category</label><input id="upload-category" name="category" maxlength="80" value="Uncategorized" required>
+      <label for="upload-file">Select a file <span>TXT, MD, CSV, PDF, PNG, JPEG ┬╖ 20 MB max</span></label><input id="upload-file" name="file" type="file" accept=".txt,.md,.csv,.pdf,.png,.jpg,.jpeg" required>
+      <p class="modal-note"><span class="lock-glyph">Γùå</span> Stored encrypted. Only your account can access it until you share it directly.</p>
+      <div class="modal-actions"><button type="button" class="button button-secondary close-dialog">Cancel</button><button class="button button-primary" type="submit">Encrypt &amp; upload</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="share-dialog" class="modal-dialog share-dialog">
+    <div class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">DOCUMENT ACCESS</p><h2 id="share-title">Manage sharing</h2></div><button type="button" class="icon-button close-dialog" aria-label="Close">├ù</button></div>
+      <form id="share-form">
+        <label for="share-email">Grant access to an account</label><div class="share-input-row"><input id="share-email" type="email" placeholder="name@company.com" required><button class="button button-primary" type="submit">Grant</button></div>
+        <label for="share-permission">Permission</label><select id="share-permission"><option value="read">Viewer ┬╖ read only</option><option value="edit">Editor ┬╖ read and edit</option></select>
+        <label for="share-expiry">Access expires <span>Optional</span></label><input id="share-expiry" type="datetime-local">
+        <p class="modal-note"><span class="lock-glyph">Γùå</span> This grant applies to this document only. Revocation takes effect on the next request.</p>
+      </form>
+      <div class="shares-heading"><span>PEOPLE WITH ACCESS</span><span id="share-count">0</span></div>
+      <div id="share-list" class="share-list"></div>
+      <div class="modal-actions"><button type="button" class="button button-secondary close-dialog">Done</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="edit-dialog" class="modal-dialog">
+    <form id="edit-form" class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">DOCUMENT METADATA</p><h2>Edit document</h2></div><button type="button" class="icon-button close-dialog" aria-label="Close">├ù</button></div>
+      <label for="edit-title">Document name</label><input id="edit-title" maxlength="160" required>
+      <label for="edit-category">Category</label><input id="edit-category" maxlength="80" required>
+      <label for="replace-file">Replace file <span>Optional ┬╖ supported types only ┬╖ 20 MB max</span></label><input id="replace-file" type="file" accept=".txt,.md,.csv,.pdf,.png,.jpg,.jpeg">
+      <p class="modal-note"><span class="lock-glyph">Γùå</span> Changes are recorded in the audit trail.</p>
+      <div class="modal-actions"><button type="button" class="button button-secondary close-dialog">Cancel</button><button class="button button-primary" type="submit">Save changes</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="security-dialog" class="modal-dialog">
+    <form id="password-form" class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">ACCOUNT SECURITY</p><h2>Change password</h2></div><button type="button" class="icon-button close-dialog" aria-label="Close">├ù</button></div>
+      <label for="current-password">Current password</label><input id="current-password" type="password" autocomplete="current-password" required>
+      <label for="new-password">New password <span>20 characters minimum</span></label><input id="new-password" type="password" autocomplete="new-password" minlength="20" required>
+      <label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="20" required>
+      <p id="password-note" class="modal-note"><span class="lock-glyph">Γùå</span> Changing your password signs out all other sessions.</p>
+      <div class="modal-actions"><button id="password-cancel" type="button" class="button button-secondary close-dialog">Cancel</button><button class="button button-primary" type="submit">Update password</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="mfa-dialog" class="modal-dialog">
+    <form id="mfa-form" class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">REQUIRED ACCOUNT SECURITY</p><h2>Set up an authenticator</h2></div><button id="mfa-close" type="button" class="icon-button close-dialog" aria-label="Close" hidden>├ù</button></div>
+      <p class="mfa-instructions">Add this key to an authenticator app as a time-based code, then enter the current six-digit code below.</p>
+      <div class="mfa-secret-box"><span>SETUP KEY</span><code id="mfa-secret">Preparing secure keyΓÇª</code><button id="copy-mfa-secret" class="text-button" type="button">Copy key</button></div>
+      <label for="confirm-mfa-code">Authenticator code</label>
+      <input id="confirm-mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+      <p class="modal-note"><span class="lock-glyph">Γùå</span> Keep this setup key private. It is shown only during enrollment.</p>
+      <p id="mfa-error" class="form-error" role="alert"></p>
+      <div class="modal-actions"><button id="mfa-submit" class="button button-primary" type="submit">Verify &amp; enable MFA</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+</body>
+</html>

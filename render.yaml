@@ -1,15 +1,20 @@
 services:
   - type: web
-    name: trustvault
-    runtime: node
+    name: trustvault-demo
+    runtime: python
     plan: free
     branch: main
-    buildCommand: npm ci
-    startCommand: node src/seed.js && node src/server.js
+    numInstances: 1
+    buildCommand: pip install -r requirements.txt && npm install
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     autoDeployTrigger: commit
     envVars:
-      - key: PORT
-        value: 10000
-      - key: TRUST_PROXY
+      - key: TRUSTVAULT_ENV
+        value: development
+      - key: TRUSTVAULT_DEMO
         value: "1"
+      - key: TRUSTVAULT_COOKIE_SECURE
+        value: "1"
+      - key: TRUSTVAULT_DATA_DIR
+        value: /tmp/trustvault-demo
