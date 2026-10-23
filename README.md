@@ -2,7 +2,7 @@
 
 Secure document sharing where only people who were granted a document can reach it, and every attempt (allowed or refused) is recorded in a tamper-evident audit trail.
 
-Stack: Node 20+, Express, SQLite (better-sqlite3). Run `npm test` for the security suite (27 tests).
+Stack: Node 20+, Express, SQLite (better-sqlite3). Run `npm test` for the security suite (28 tests).
 
 ## Run it
 ```bash

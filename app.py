@@ -9,6 +9,11 @@ from fastapi.responses import StreamingResponse, JSONResponse
 
 app = FastAPI(title="TrustVault")
 
+# Keep the bridge, seed command, and Node backend pointed at the same
+# persistent/runtime data directory.
+DATA_DIR = os.environ.get("TRUSTVAULT_DATA_DIR", "data")
+os.environ["DATA_DIR"] = DATA_DIR
+
 # 1. Ensure node_modules exists
 if not os.path.exists("node_modules"):
     print("[TrustVault] node_modules not found, running npm ci...")
@@ -22,7 +27,7 @@ subprocess.run(["node", "src/seed.js"], check=False)
 PORT_NODE = int(os.environ.get("NODE_INTERNAL_PORT", 3001))
 node_env = os.environ.copy()
 node_env["PORT"] = str(PORT_NODE)
-node_env["DATA_DIR"] = os.environ.get("TRUSTVAULT_DATA_DIR", "data")
+node_env["DATA_DIR"] = DATA_DIR
 
 print(f"[TrustVault] Starting Node.js backend on port {PORT_NODE}...")
 node_proc = subprocess.Popen(["node", "src/server.js"], env=node_env)
