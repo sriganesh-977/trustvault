@@ -77,22 +77,29 @@ function quickLogin(email, password) {
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   refreshIcons();
-  // Check if session exists in localStorage
+  const oauthStatus = new URLSearchParams(window.location.search).get('oauth');
+  if (oauthStatus === 'success') showToast('Signed in successfully.', 'success');
+  if (oauthStatus === 'not_configured') showToast('This sign-in provider is not configured yet.', 'error');
+  if (oauthStatus === 'disabled') showToast('This account is disabled.', 'error');
+  if (oauthStatus === 'failed') showToast('Social sign-in was not completed.', 'error');
+  if (oauthStatus) window.history.replaceState({}, document.title, window.location.pathname);
+
+  // Check both the bearer token and the secure OAuth session cookie.
   const savedToken = localStorage.getItem('tv_token');
   const savedCsrf = localStorage.getItem('tv_csrf');
   if (savedToken) {
     currentToken = savedToken;
     currentCsrfToken = savedCsrf;
-    try {
-      const res = await api('/api/me');
-      if (res.ok) {
-        currentUser = await res.json();
-        renderLoggedInView();
-        return;
-      }
-    } catch {}
-    logout();
   }
+  try {
+    const res = await api('/api/me');
+    if (res.ok) {
+      currentUser = await res.json();
+      renderLoggedInView();
+      return;
+    }
+  } catch {}
+  if (savedToken) logout();
 });
 
 function refreshIcons() {
@@ -143,12 +150,12 @@ function setupEventListeners() {
     }
   });
 
-  // OAuth providers are opt-in until provider credentials and callback routes
-  // are configured for this deployment.
+  // Start the provider authorization flow. The server validates state and
+  // creates the normal TrustVault session after the provider callback.
   document.querySelectorAll('.social-login-btn').forEach((button) => {
     button.addEventListener('click', () => {
       const provider = button.dataset.provider;
-      showToast(`${provider} sign-in will be available when SSO is configured by the administrator.`, 'info');
+      window.location.assign(`/api/auth/oauth/${provider}`);
     });
   });
 

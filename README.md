@@ -13,6 +13,15 @@ npm start         # http://localhost:3000
 Visit `http://localhost:3000` in your web browser to open the interactive **TrustVault Web UI Dashboard**!
 Quick demo sign-in buttons are available on the login screen for `admin`, `owner`, and `viewer`.
 Env: `PORT`, `DATA_DIR` (default `./data`), `DB_PATH`, `TRUST_PROXY=1` when behind a proxy (so audit IPs are right).
+
+### Social sign-in
+
+The sign-in page supports Google and Microsoft OAuth. Configure these as deployment secrets; never commit the client secrets:
+
+- Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GOOGLE_REDIRECT_URI`
+- Microsoft: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, optional `MICROSOFT_TENANT_ID` and `MICROSOFT_REDIRECT_URI`
+
+If redirect URI variables are omitted, use `https://<your-host>/api/auth/oauth/google/callback` and `https://<your-host>/api/auth/oauth/microsoft/callback` in the provider consoles.
 Seed passwords can be overridden with `SEED_ADMIN_PW`, `SEED_OWNER_PW`, `SEED_VIEWER_PW`.
 
 Demo credentials (seed data, change on any real deployment):

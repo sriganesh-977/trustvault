@@ -35,6 +35,69 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
   const log = (req, action, outcome, extra = {}) =>
     audit.record(db, { actor: req.user, ip: req.ip, action, outcome, ...extra });
 
+  const oauthProviderConfig = (provider, req) => {
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
+    const origin = `${protocol}://${req.get('host')}`;
+    if (provider === 'google') return {
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI || `${origin}/api/auth/oauth/google/callback`,
+      authorize: 'https://accounts.google.com/o/oauth2/v2/auth',
+      token: 'https://oauth2.googleapis.com/token',
+      userInfo: 'https://openidconnect.googleapis.com/v1/userinfo',
+      scope: 'openid email profile'
+    };
+    const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
+    return {
+      clientId: process.env.MICROSOFT_CLIENT_ID,
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+      redirectUri: process.env.MICROSOFT_REDIRECT_URI || `${origin}/api/auth/oauth/microsoft/callback`,
+      authorize: `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize`,
+      token: `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,
+      userInfo: 'https://graph.microsoft.com/oidc/userinfo',
+      scope: 'openid profile email User.Read'
+    };
+  };
+
+  const oauthStateCookie = (provider, state) => `${provider}.${state}`;
+  const createSession = (u) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    db.prepare('INSERT INTO sessions (token_hash,user_id,expires_at,created_at) VALUES (?,?,?,?)')
+      .run(sha(token), u.id, Date.now() + SESSION_MS, now());
+    return { token, csrfToken: sha(token + ':csrf'), user: { id: u.id, email: u.email, name: u.name, role: u.role } };
+  };
+
+  const setSessionCookie = (res, token) => res.cookie('tv_session', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.TRUSTVAULT_COOKIE_SECURE !== '0',
+    path: '/api',
+    maxAge: SESSION_MS
+  });
+
+  const oauthUser = async (provider, code, config) => {
+    const tokenResponse = await fetch(config.token, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code, client_id: config.clientId, client_secret: config.clientSecret,
+        redirect_uri: config.redirectUri, grant_type: 'authorization_code'
+      })
+    });
+    if (!tokenResponse.ok) throw new Error('token_exchange_failed');
+    const tokens = await tokenResponse.json();
+    if (!tokens.access_token) throw new Error('missing_access_token');
+    const profileResponse = await fetch(config.userInfo, { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+    if (!profileResponse.ok) throw new Error('profile_request_failed');
+    const profile = await profileResponse.json();
+    const email = String(profile.email || profile.mail || profile.userPrincipalName || '').trim().toLowerCase();
+    const name = String(profile.name || profile.displayName || email.split('@')[0] || 'TrustVault user').trim().slice(0, 100);
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('provider_email_missing');
+    if (provider === 'google' && profile.email_verified === false) throw new Error('provider_email_unverified');
+    return { email, name };
+  };
+
   // ---------- auth middleware: hits the DB on every request, so disabling a user or session is immediate
   function requireAuth(req, res, next) {
     let token = null;
@@ -101,6 +164,52 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
     } catch (e) {
       if (String(e.message).includes('UNIQUE')) return res.status(409).json({ error: 'email already registered' });
       throw e;
+    }
+  });
+
+  app.get('/api/auth/oauth/:provider', (req, res) => {
+    const provider = String(req.params.provider || '').toLowerCase();
+    if (!['google', 'microsoft'].includes(provider)) return res.redirect('/?oauth=unsupported');
+    const config = oauthProviderConfig(provider, req);
+    if (!config.clientId || !config.clientSecret) return res.redirect(`/?oauth=not_configured&provider=${provider}`);
+    const state = crypto.randomBytes(24).toString('hex');
+    res.cookie('tv_oauth_state', oauthStateCookie(provider, state), {
+      httpOnly: true, sameSite: 'lax', secure: process.env.TRUSTVAULT_COOKIE_SECURE !== '0',
+      path: '/api/auth/oauth', maxAge: 10 * 60 * 1000
+    });
+    const params = new URLSearchParams({ client_id: config.clientId, redirect_uri: config.redirectUri,
+      response_type: 'code', scope: config.scope, state });
+    if (provider === 'google') params.set('access_type', 'online');
+    res.redirect(`${config.authorize}?${params}`);
+  });
+
+  app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
+    const provider = String(req.params.provider || '').toLowerCase();
+    const stateCookie = req.headers.cookie?.match(/(?:^|;\s*)tv_oauth_state=([^;]+)/)?.[1];
+    const expectedState = stateCookie ? decodeURIComponent(stateCookie) : '';
+    const validState = expectedState.startsWith(`${provider}.`) && expectedState.slice(provider.length + 1) === req.query.state;
+    res.clearCookie('tv_oauth_state', { path: '/api/auth/oauth', httpOnly: true, sameSite: 'lax' });
+    if (!['google', 'microsoft'].includes(provider) || !validState || typeof req.query.code !== 'string')
+      return res.redirect('/?oauth=failed');
+    const config = oauthProviderConfig(provider, req);
+    if (!config.clientId || !config.clientSecret) return res.redirect(`/?oauth=not_configured&provider=${provider}`);
+    try {
+      const profile = await oauthUser(provider, req.query.code, config);
+      let u = db.prepare('SELECT * FROM users WHERE email=?').get(profile.email);
+      if (u && !u.active) return res.redirect('/?oauth=disabled');
+      if (!u) {
+        const passwordHash = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), COST);
+        const result = db.prepare('INSERT INTO users (email,name,password_hash,role,created_at) VALUES (?,?,?,?,?)')
+          .run(profile.email, profile.name, passwordHash, 'viewer', now());
+        u = db.prepare('SELECT * FROM users WHERE id=?').get(result.lastInsertRowid);
+      }
+      const session = createSession(u);
+      setSessionCookie(res, session.token);
+      audit.record(db, { actor: u, ip: req.ip, action: `oauth.login.${provider}`, outcome: 'allowed' });
+      res.redirect('/?oauth=success');
+    } catch (error) {
+      audit.record(db, { actorEmail: provider, ip: req.ip, action: `oauth.login.${provider}`, outcome: 'denied', detail: { reason: error.message } });
+      res.redirect('/?oauth=failed');
     }
   });
 
