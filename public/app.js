@@ -143,6 +143,15 @@ function setupEventListeners() {
     }
   });
 
+  // OAuth providers are opt-in until provider credentials and callback routes
+  // are configured for this deployment.
+  document.querySelectorAll('.social-login-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      const provider = button.dataset.provider;
+      showToast(`${provider} sign-in will be available when SSO is configured by the administrator.`, 'info');
+    });
+  });
+
   // Register Submit
   document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
