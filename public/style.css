@@ -795,3 +795,20 @@ input:focus, select:focus { border-color: var(--border-focus); box-shadow: 0 0 0
   #auth-section .auth-visual-caption small { display: none; }
   #auth-section .auth-form-panel { padding: 1.25rem 1rem 2rem; }
 }
+
+/* Keep the sign-in artwork above the form at every viewport size. */
+#auth-section.auth-card {
+  display: block;
+  width: min(720px, calc(100% - 2rem));
+}
+#auth-section .auth-visual {
+  height: 220px;
+  min-height: 220px;
+  margin: 0;
+}
+#auth-section .auth-form-panel { padding: 3rem 3.5rem; }
+@media (max-width: 780px) {
+  #auth-section.auth-card { width: calc(100% - 1rem); }
+  #auth-section .auth-visual { height: 112px; min-height: 112px; }
+  #auth-section .auth-form-panel { padding: 1.25rem 1rem 2rem; }
+}
