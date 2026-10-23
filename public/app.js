@@ -76,6 +76,7 @@ function quickLogin(email, password) {
 // App Initialization
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  refreshIcons();
   // Check if session exists in localStorage
   const savedToken = localStorage.getItem('tv_token');
   const savedCsrf = localStorage.getItem('tv_csrf');
@@ -93,6 +94,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     logout();
   }
 });
+
+function refreshIcons() {
+  if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+}
 
 function setupEventListeners() {
   // Tabs: Login vs Register
@@ -363,6 +368,7 @@ function renderLoggedInView() {
   } else {
     document.getElementById('tab-documents').click();
   }
+  refreshIcons();
 }
 
 // ---------- Document Management
