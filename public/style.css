@@ -785,3 +785,13 @@ input:focus, select:focus { border-color: var(--border-focus); box-shadow: 0 0 0
   .audit-filters { width: 100%; }
   .audit-filters select, .audit-filters button { flex: 1; }
 }
+
+/* Keep the auth entry point visible on compact/mobile screens. */
+@media (max-width: 780px) {
+  #auth-section.auth-card { width: calc(100% - 1rem); margin: 1rem auto 2rem; }
+  #auth-section .auth-visual { min-height: 112px; height: 112px; }
+  #auth-section .auth-visual-caption { left: 1.1rem; bottom: .8rem; }
+  #auth-section .auth-visual-caption strong { font-size: 1.45rem; }
+  #auth-section .auth-visual-caption small { display: none; }
+  #auth-section .auth-form-panel { padding: 1.25rem 1rem 2rem; }
+}
