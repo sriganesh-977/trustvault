@@ -560,6 +560,8 @@ input:focus, select:focus { border-color: #4d9a78; box-shadow: 0 0 0 3px rgba(77
 .data-table th { background: #f5f8f6; color: #64736b; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .data-table tr:hover { background: #f8fbf9; }
 .upload-card { border-top: 3px solid #4d9a78; }
+.upload-grant-fields { min-width: 220px; }
+.upload-grant-fields label { display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
 .modal { background: rgba(23, 36, 33, 0.42); backdrop-filter: blur(3px); }
 .modal-content { border-radius: 12px; }
 .toast { border-radius: 8px; color: #172421; background: #fff; border: 1px solid #dce5de; border-left: 4px solid var(--primary); box-shadow: 0 12px 28px rgba(23, 36, 33, 0.14); }

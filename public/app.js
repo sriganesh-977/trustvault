@@ -223,8 +223,14 @@ function setupEventListeners() {
     formData.append('file', file);
     const name = document.getElementById('upload-name').value;
     const category = document.getElementById('upload-category').value;
+    const grantEmail = document.getElementById('upload-grant-email').value.trim();
+    const grantLevel = document.getElementById('upload-grant-level').value;
     if (name) formData.append('name', name);
     if (category) formData.append('category', category);
+    if (grantEmail) {
+      formData.append('grant_email', grantEmail);
+      formData.append('grant_level', grantLevel);
+    }
 
     try {
       const res = await api('/api/documents', {
@@ -233,7 +239,7 @@ function setupEventListeners() {
       });
       const data = await res.json();
       if (!res.ok) return showToast(data.error || 'Upload failed', 'error');
-      showToast(`Document "${data.name}" uploaded successfully!`, 'success');
+      showToast(grantEmail ? `Document uploaded and shared with ${grantEmail}.` : `Document "${data.name}" uploaded successfully!`, 'success');
       document.getElementById('upload-form').reset();
       loadDocuments();
     } catch (err) {

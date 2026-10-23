@@ -145,6 +145,16 @@ test('only the owner role can upload; viewers and admins cannot', async () => {
   assert.equal((await upload('admin')).status, 403);
 });
 
+test('owner can grant named read access during upload, and the grant is enforced', async () => {
+  const r = await upload('alice', PDF, 'shared-on-upload.pdf', { grant_email: 'carol@t.test', grant_level: 'read' });
+  assert.equal(r.status, 201);
+  assert.deepEqual(r.body.grant, { email: 'carol@t.test', level: 'read' });
+  const id = r.body.id;
+  assert.equal((await request(app).get(`/api/documents/${id}/download`).set(as('carol'))).status, 200);
+  assert.equal((await request(app).patch(`/api/documents/${id}`).set(as('carol')).send({ name: 'blocked.pdf' })).status, 403);
+  assert.ok(lastAudit('permission.grant'));
+});
+
 test('non-admins cannot reach admin endpoints; role check is server-side', async () => {
   for (const w of ['alice', 'carol']) {
     assert.equal((await request(app).get('/api/admin/audit').set(as(w))).status, 403);

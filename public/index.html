@@ -119,6 +119,17 @@
                     <option value="confidential">Confidential</option>
                   </select>
                 </div>
+                <div class="form-group flex-2 upload-grant-fields">
+                  <label for="upload-grant-email">Grant access now <span class="hint">Optional named account</span></label>
+                  <input type="email" id="upload-grant-email" placeholder="person@trustvault.test">
+                </div>
+                <div class="form-group flex-1 upload-grant-fields">
+                  <label for="upload-grant-level">Permission</label>
+                  <select id="upload-grant-level">
+                    <option value="read">Read &amp; download</option>
+                    <option value="edit">Edit &amp; replace</option>
+                  </select>
+                </div>
                 <div class="form-group flex-0 align-end">
                   <button type="submit" class="btn btn-success">Upload Document</button>
                 </div>

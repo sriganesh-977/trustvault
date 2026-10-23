@@ -149,6 +149,16 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
   app.post('/api/documents', requireAuth, requireRole('owner'), upload.single('file'), (req, res) => {
     const info = inspectUpload(req.file);
     if (info.error) { log(req, 'document.upload', 'denied', { detail: { reason: info.error } }); return res.status(400).json({ error: info.error }); }
+    const grantEmail = str(req.body?.grant_email, 200)?.toLowerCase();
+    const grantLevel = req.body?.grant_level;
+    let grantTarget = null;
+    if (grantEmail) {
+      if (!['read', 'edit'].includes(grantLevel)) return res.status(400).json({ error: 'grant_level must be read or edit' });
+      grantTarget = db.prepare('SELECT id,email,role FROM users WHERE email=? AND active=1').get(grantEmail);
+      if (!grantTarget) return res.status(404).json({ error: 'grant target user not found' });
+      if (grantTarget.id === req.user.id) return res.status(400).json({ error: 'you already own this document' });
+      if (grantTarget.role === 'admin') return res.status(400).json({ error: 'administrators cannot be granted document access' });
+    }
     const id = crypto.randomUUID(), blob = crypto.randomUUID();
     const name = str(req.body?.name, 120) || info.name;
     const category = str(req.body?.category, 50) || 'general';
@@ -159,7 +169,12 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
     db.prepare(`INSERT INTO document_versions (document_id,version_number,blob_name,mime,size,sha256,created_by,created_at)
       VALUES (?,?,?,?,?,?,?,?)`).run(id, 1, blob, info.mime, req.file.size, sha(req.file.buffer), req.user.id, now());
     log(req, 'document.upload', 'allowed', { documentId: id, detail: { name, size: req.file.size, mime: info.mime } });
-    res.status(201).json(publicDoc(db.prepare('SELECT * FROM documents WHERE id=?').get(id)));
+    if (grantTarget) {
+      db.prepare(`INSERT INTO grants (document_id,user_id,level,granted_by,created_at) VALUES (?,?,?,?,?)`)
+        .run(id, grantTarget.id, grantLevel, req.user.id, now());
+      log(req, 'permission.grant', 'allowed', { documentId: id, detail: { target: grantTarget.email, level: grantLevel, during_upload: true } });
+    }
+    res.status(201).json({ ...publicDoc(db.prepare('SELECT * FROM documents WHERE id=?').get(id)), grant: grantTarget ? { email: grantTarget.email, level: grantLevel } : null });
   });
 
   // Search is filtered INSIDE the query: documents you can't reach never come back, so can't leak.
