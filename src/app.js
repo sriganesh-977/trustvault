@@ -178,7 +178,7 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
       path: '/api/auth/oauth', maxAge: 10 * 60 * 1000
     });
     const params = new URLSearchParams({ client_id: config.clientId, redirect_uri: config.redirectUri,
-      response_type: 'code', scope: config.scope, state });
+      response_type: 'code', scope: config.scope, state, prompt: 'select_account' });
     if (provider === 'google') params.set('access_type', 'online');
     res.redirect(`${config.authorize}?${params}`);
   });
