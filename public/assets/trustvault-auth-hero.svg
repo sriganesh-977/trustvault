@@ -1,0 +1,23 @@
+<svg width="1200" height="520" viewBox="0 0 1200 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Secure document workspace</title>
+  <desc id="desc">An abstract illustration of protected documents in a calm professional workspace.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="520" gradientUnits="userSpaceOnUse"><stop stop-color="#E7E0D5"/><stop offset="1" stop-color="#F5F1E9"/></linearGradient>
+    <linearGradient id="screen" x1="276" y1="108" x2="882" y2="432" gradientUnits="userSpaceOnUse"><stop stop-color="#193A35"/><stop offset="1" stop-color="#2C6559"/></linearGradient>
+    <filter id="shadow" x="170" y="35" width="860" height="455" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#5C4738" flood-opacity=".18"/></filter>
+  </defs>
+  <rect width="1200" height="520" rx="24" fill="url(#bg)"/>
+  <circle cx="1050" cy="58" r="180" fill="#D9C5B1" fill-opacity=".35"/><circle cx="88" cy="458" r="180" fill="#BCD7CA" fill-opacity=".45"/>
+  <path d="M0 404C170 358 260 410 402 383C570 351 676 350 826 390C977 430 1082 399 1200 360V520H0V404Z" fill="#D2DFD5" fill-opacity=".7"/>
+  <g filter="url(#shadow)">
+    <rect x="235" y="75" width="730" height="365" rx="20" fill="#FDFBF6"/><rect x="258" y="98" width="684" height="294" rx="11" fill="url(#screen)"/>
+    <circle cx="286" cy="120" r="5" fill="#D77D5D"/><circle cx="304" cy="120" r="5" fill="#E6C27A"/><circle cx="322" cy="120" r="5" fill="#9CC8A8"/>
+    <rect x="289" y="151" width="154" height="12" rx="6" fill="#B8D7C8" fill-opacity=".8"/><rect x="289" y="178" width="88" height="9" rx="4.5" fill="#B8D7C8" fill-opacity=".38"/>
+    <rect x="289" y="212" width="191" height="128" rx="12" fill="#F7F4EC"/><rect x="502" y="212" width="191" height="128" rx="12" fill="#F7F4EC"/><rect x="715" y="212" width="191" height="128" rx="12" fill="#F7F4EC"/>
+    <path d="M316 245H356L377 266V305H316V245Z" fill="#D77D5D" fill-opacity=".24"/><path d="M529 245H569L590 266V305H529V245Z" fill="#2C6559" fill-opacity=".28"/><path d="M742 245H782L803 266V305H742V245Z" fill="#B98C5B" fill-opacity=".3"/>
+    <path d="M356 245V266H377M569 245V266H590M782 245V266H803" stroke="#D77D5D" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="316" y="315" width="94" height="7" rx="3.5" fill="#78847E" fill-opacity=".5"/><rect x="529" y="315" width="94" height="7" rx="3.5" fill="#78847E" fill-opacity=".5"/><rect x="742" y="315" width="94" height="7" rx="3.5" fill="#78847E" fill-opacity=".5"/>
+    <path d="M188 452H1012L943 440H257L188 452Z" fill="#D9D3C8"/><path d="M147 452H1053C1040 469 1019 478 997 478H203C181 478 160 469 147 452Z" fill="#C5BEB4"/><rect x="577" y="448" width="46" height="8" rx="4" fill="#AAA39A"/>
+  </g>
+  <g transform="translate(830 118)"><circle cx="73" cy="73" r="63" fill="#F6E9DE" stroke="#FFF9F0" stroke-width="8"/><rect x="42" y="65" width="62" height="51" rx="10" fill="#A94F2F"/><path d="M54 65V51C54 40.507 62.507 32 73 32C83.493 32 92 40.507 92 51V65" stroke="#A94F2F" stroke-width="10" stroke-linecap="round"/><circle cx="73" cy="89" r="7" fill="#FBEADB"/><path d="M73 96V104" stroke="#FBEADB" stroke-width="5" stroke-linecap="round"/></g>
+</svg>

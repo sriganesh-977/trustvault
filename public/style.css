@@ -613,3 +613,17 @@ body { background-color: #f3f5f1; background-image: linear-gradient(90deg, rgba(
 .data-table td { color: #33443d; }
 .data-table td:first-child { color: #172421; font-weight: 600; }
 .modal-content { border: 1px solid #dce5de; }
+
+/* Local hero artwork keeps the sign-in experience polished and reliable offline. */
+.auth-visual { position: relative; height: 220px; margin: -3rem -3.5rem 2.25rem; overflow: hidden; background: #e7e0d5; }
+.auth-visual img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.auth-visual::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20, 38, 34, .72), rgba(20, 38, 34, .08) 72%); pointer-events: none; }
+.auth-visual-caption { position: absolute; z-index: 1; left: 1.8rem; bottom: 1.45rem; display: grid; gap: .32rem; max-width: 17rem; color: #fffdf7; }
+.auth-visual-caption span { color: #b8d7c8; font: 700 .67rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .16em; }
+.auth-visual-caption strong { font: 500 2rem/1 Georgia, "Times New Roman", serif; letter-spacing: -.04em; }
+.auth-visual-caption small { color: rgba(255, 253, 247, .78); font-size: .78rem; line-height: 1.35; }
+@media (max-width: 600px) {
+  .auth-visual { height: 185px; margin: -2rem -1.35rem 1.8rem; }
+  .auth-visual-caption { left: 1.2rem; bottom: 1rem; }
+  .auth-visual-caption strong { font-size: 1.7rem; }
+}
