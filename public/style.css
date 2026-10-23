@@ -591,6 +591,7 @@ input:focus, select:focus { border-color: #4d9a78; box-shadow: 0 0 0 3px rgba(77
 .microsoft-mark i { display: block; width: 8px; height: 8px; }
 .microsoft-mark i:nth-child(1) { background: #f35325; }.microsoft-mark i:nth-child(2) { background: #81bc06; }.microsoft-mark i:nth-child(3) { background: #05a6f0; }.microsoft-mark i:nth-child(4) { background: #ffba08; }
 body { background-color: #f3f5f1; background-image: linear-gradient(90deg, rgba(118, 143, 132, 0.08) 1px, transparent 1px), linear-gradient(rgba(118, 143, 132, 0.08) 1px, transparent 1px); background-size: 72px 72px; }
+body { overflow-x: hidden; }
 @media (max-width: 600px) { #auth-section.auth-card { margin-top: 6rem; padding: 2.6rem 1.75rem; } #auth-section .auth-header h2 { font-size: 2.65rem; } }
 
 /* Reference sign-in layout */
@@ -607,6 +608,12 @@ body { background-color: #f3f5f1; background-image: linear-gradient(90deg, rgba(
 #auth-section .demo-box { margin-top: 2rem; padding-top: 1.35rem; border-top-color: #e8e1d6; }
 #auth-section .demo-title { color: #73695e; }
 @media (max-width: 600px) { #auth-section.auth-card { margin-top: 3rem; padding: 2rem 1.35rem; } #auth-section .auth-header h2 { font-size: 2.15rem; } #auth-section .social-login-buttons { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  #auth-section.auth-card { width: calc(100% - 1rem); max-width: none; margin: 1rem auto 2rem; border-radius: 16px; }
+  #auth-section .auth-visual { min-height: 170px; height: 170px; }
+  #auth-section .auth-form-panel { padding: 1.5rem 1rem 2rem; }
+  #auth-section .auth-header h2 { font-size: clamp(2rem, 8vw, 2.65rem); }
+}
 .auth-card { padding: 2.25rem; border-top: 4px solid #2d7b5b; }
 .auth-header { margin-bottom: 2rem; }
 .auth-header h2 { font-weight: 750; line-height: 1.1; }
