@@ -1,70 +1,58 @@
 # TrustVault
 
-Secure document sharing where only people who were granted a document can reach it, and every attempt (allowed or refused) is recorded in a tamper-evident audit trail.
+TrustVault is a Node.js/Express document vault with server-enforced, per-document permissions. The dashboard is not an authorization boundary: every list, file, edit, delete, and permission route checks current database state.
 
-Stack: Node 20+, Express, SQLite (better-sqlite3). Run `npm test` for the security suite (28 tests).
+## Live demo
 
-## Run it
-```bash
+<https://trustvault-demo-6mq6.onrender.com>
+
+The demo contains fictional documents and seeded accounts. Do not upload real or confidential files. It is hosted on Render Free: the service sleeps after inactivity and the filesystem is ephemeral, so uploaded files, the SQLite database, and local encryption key can be lost on spin-down, restart, or redeploy.
+
+| Role | Email | Password | Scope |
+|---|---|---|---|
+| Administrator | `admin@trustvault.test` | `Admin-Demo-Pass-1` | Manage users and audit metadata. |
+| Document owner | `owner@trustvault.test` | `Owner-Demo-Pass-1` | Upload, edit, grant/revoke, and delete owned documents. |
+| Viewer | `viewer@trustvault.test` | `Viewer-Demo-Pass-1` | View documents explicitly granted to the account. |
+
+## Run locally
+
+```powershell
 npm ci
-npm run seed      # creates one demo account per role (see below)
-npm start         # http://localhost:3000
+$env:TRUSTVAULT_DEMO = "1"
+npm start
 ```
-Visit `http://localhost:3000` in your web browser to open the interactive **TrustVault Web UI Dashboard**!
-Quick demo sign-in buttons are available on the login screen for `admin`, `owner`, and `viewer`.
-Env: `PORT`, `DATA_DIR` (default `./data`), `DB_PATH`, `TRUST_PROXY=1` when behind a proxy (so audit IPs are right).
 
-### Social sign-in
+Open <http://127.0.0.1:3000>. The first run creates the SQLite database and private blob directory under `DATA_DIR` (default `./data`). Set `TRUSTVAULT_DEMO=0` to disable seed accounts.
 
-The sign-in page supports Google and Microsoft OAuth. Configure these as deployment secrets; never commit the client secrets:
+## Permission model
 
-- Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GOOGLE_REDIRECT_URI`
-- Microsoft: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, optional `MICROSOFT_TENANT_ID` and `MICROSOFT_REDIRECT_URI`
+Grants are direct to named, already-provisioned accounts; there is no folder inheritance. `read` permits list visibility and file download. `edit` also permits metadata and file replacement. Only the workspace `admin` and the document `owner` can grant/revoke permissions or soft-delete the document. Admins can read/edit/delete all non-deleted documents. The server checks each request. A committed revocation is effective for the next request; it cannot retract bytes already downloaded or cancel a response already in flight.
 
-If redirect URI variables are omitted, use `https://<your-host>/api/auth/oauth/google/callback` and `https://<your-host>/api/auth/oauth/microsoft/callback` in the provider consoles.
-Seed passwords can be overridden with `SEED_ADMIN_PW`, `SEED_OWNER_PW`, `SEED_VIEWER_PW`.
+## API and database
 
-Demo credentials (seed data, change on any real deployment):
-| Role | Email | Password |
-|---|---|---|
-| admin | admin@trustvault.test | Admin-Demo-Pass-1 |
-| owner | owner@trustvault.test | Owner-Demo-Pass-1 |
-| viewer | viewer@trustvault.test | Viewer-Demo-Pass-1 |
+- [API.md](API.md) documents every route and its caller permissions.
+- The database schema is created and migrated by [src/db.js](src/db.js).
+- [THREATS.md](THREATS.md) records attacks considered, mitigations, tests, and accepted gaps.
+- [PROMPTS.md](PROMPTS.md) records dated AI prompts, issues caught, and fixing commits.
+- [SUBMISSION.md](SUBMISSION.md) summarizes design choices and unfinished work.
 
-## Permission model (in my words)
-- **Roles** (global): `admin` manages users and sees activity/metadata, with **no access to document content**. `owner` can upload documents and manage who can access them. `viewer` can only use documents granted to them. Self-registration always creates a viewer; an admin promotes.
-- **Per-document access**: the uploader is that document's owner. Others get an explicit grant: `read` (view + download) or `edit` (also rename/recategorise/replace content). Only the document owner can delete or grant/revoke. No groups or folder inheritance (deliberately; fewer ways to get it wrong).
-- **One decision point**: `authorize()` in `src/authz.js`, called by every document route; it re-reads the DB every time, so revocation is instant. Tokens carry no permissions.
-- Auth: opaque random session token (`Authorization: Bearer <token>`), stored hashed, 8 h expiry, revocable.
+## Tests
 
-## API: who may call what
-`any` = any authenticated user, `doc:X` = must hold at least X on that document (owner > edit > read). All failures on documents return 404 unless the caller holds a lower grant (then 403). Every call is audited.
+```powershell
+npm test
+```
 
-| Endpoint | Who |
-|---|---|
-| `POST /api/auth/register` | public (creates a viewer) |
-| `POST /api/auth/login` | public (5 failures → 15 min lock) |
-| `POST /api/auth/logout`, `GET /api/me` | any |
-| `POST /api/documents` (multipart `file`, optional `name`, `category`) | role `owner` |
-| `GET /api/documents?q=&category=&owner=&from=&to=` | any (results limited to documents you can reach) |
-| `GET /api/documents/:id` | doc:read |
-| `GET /api/documents/:id/download` | doc:read |
-| `PATCH /api/documents/:id` (`name`, `category`) | doc:edit |
-| `PUT /api/documents/:id/content` (multipart `file`) | doc:edit |
-| `DELETE /api/documents/:id` | doc:owner |
-| `GET /api/documents/:id/versions` | doc:read |
-| `GET /api/documents/:id/versions/:version/download` | doc:read |
-| `POST /api/documents/:id/rollback/:version` | doc:edit |
-| `GET/POST /api/documents/:id/grants` (`email`, `level`) | doc:owner |
-| `DELETE /api/documents/:id/grants/:userId` | doc:owner |
-| `GET /api/admin/audit?action=&outcome=&document=&actor=&before=&limit=` | role `admin` |
-| `GET /api/admin/audit/verify` | role `admin` |
-| `GET/POST /api/admin/audit/anchor` | role `admin` |
-| `GET /api/admin/alerts` | role `admin` |
-| `GET /api/admin/documents` (metadata only) | role `admin` |
-| `GET /api/admin/users`, `PATCH /api/admin/users/:id` (`role`, `active`) | role `admin` |
+The suite exercises role boundaries across listing, download, edit, replacement, delete, and grant routes; immediate revocation; expired grants; search scoping; upload validation; signed audit tampering; MFA replay; and login throttling. If an authorization check is removed, the corresponding cross-role assertion should fail.
 
-## Docs
-- `THREATS.md`: threats, what was done, what was knowingly accepted
-- `PROMPTS.md`: AI usage log
-- Schema: `src/db.js` (created automatically on start; no migration step)
+## Security construction and limitations
+
+- Passwords use bcrypt. Sessions are random opaque identifiers stored as hashes with an expiry; state-changing routes require CSRF tokens. MFA uses TOTP. Five failed login attempts trigger a temporary lockout.
+- Uploads are capped at 20 MB and restricted by magic-byte validation to supported text, PDF, PNG, and JPEG files. Filenames are sanitized and blobs are stored outside the public web root. This is not malware scanning or content disarm.
+- Audit entries form a SHA-256 chain and have SQLite append-only triggers. A database-only attacker cannot silently edit an event without detection. A compromised application process can forge events. External anchoring is available through the admin audit controls.
+- A `document.read` event proves the server authorized and returned a file response, not that a human read or retained the bytes.
+- Soft delete revokes access immediately but retains encrypted content; no restore or permanent purge endpoint exists.
+- There is no self-service account invitation, email verification, password reset, MFA recovery, SSO, multi-tenant isolation, malware scanning, tested backup/restore, or key rotation workflow. Do not use this build for real confidential documents until those needs are implemented and independently reviewed.
+
+## Production startup guard
+
+Set `TRUSTVAULT_DEMO=0`, `TRUSTVAULT_COOKIE_SECURE=1`, and `DATA_DIR` to durable storage in production. Configure OAuth secrets only through the host secret manager. Never commit production credentials. `GET /healthz` is the host health-check endpoint.
