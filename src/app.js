@@ -592,7 +592,9 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
   });
   app.use('/api/admin', admin);
   app.get('/api/config', (req, res) => res.json({
-    demoAccounts: process.env.NODE_ENV !== 'production' && process.env.TRUSTVAULT_DEMO_ACCOUNTS !== '0',
+    // Production deployments stay hidden by default; the hosted demo opts in explicitly.
+    demoAccounts: process.env.TRUSTVAULT_DEMO === '1' ||
+      (process.env.NODE_ENV !== 'production' && process.env.TRUSTVAULT_DEMO_ACCOUNTS !== '0'),
     sessionHours: SESSION_MS / 3600000
   }));
 
