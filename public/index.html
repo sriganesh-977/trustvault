@@ -197,6 +197,18 @@
             </div>
           </div>
 
+          <section id="viewer-summary-panel" class="card viewer-summary-panel" aria-live="polite">
+            <div class="viewer-summary-heading">
+              <div>
+                <span class="auth-eyebrow">VIEWER READING GUIDE</span>
+                <h3>Document summary</h3>
+              </div>
+              <span class="badge badge-info">Read-only context</span>
+            </div>
+            <p id="viewer-summary-title" class="viewer-summary-title">Select a document to read its summary</p>
+            <p id="viewer-summary-text" class="viewer-summary-text">This section explains what the document is about. It does not grant access beyond your current permissions.</p>
+          </section>
+
           <!-- Document Table -->
           <div class="card table-card">
             <div class="card-header flex-between">
@@ -218,7 +230,7 @@
                   </tr>
                 </thead>
                 <tbody id="documents-tbody">
-                  <tr><td colspan="7" class="text-center text-muted">Loading documents...</td></tr>
+                  <tr><td colspan="8" class="text-center text-muted">Loading documents...</td></tr>
                 </tbody>
               </table>
             </div>

@@ -484,6 +484,7 @@ async function loadDocuments() {
       return;
     }
     const docs = await res.json();
+    window.loadedDocuments = docs;
     const total = Number(res.headers.get('X-Total-Count') || docs.length);
     document.getElementById('doc-count-badge').textContent = `${total} document${total === 1 ? '' : 's'}`;
 
@@ -512,7 +513,7 @@ async function loadDocuments() {
 
       return `
         <tr>
-          <td><strong>📄 ${escapeHtml(d.name)}</strong></td>
+          <td><button type="button" class="summary-trigger" data-id="${d.id}" title="Read document summary"><strong>📄 ${escapeHtml(d.name)}</strong></button></td>
           <td><span class="document-summary">${escapeHtml(d.summary || 'No summary provided.')}</span></td>
           <td><span class="badge badge-secondary">${escapeHtml(d.category)}</span></td>
           <td>${formatBytes(d.size)}</td>
@@ -532,9 +533,22 @@ async function loadDocuments() {
         </tr>
       `;
     }).join('');
+    document.querySelectorAll('#documents-tbody .summary-trigger').forEach((button) => {
+      button.addEventListener('click', () => showViewerSummary(button.dataset.id));
+    });
+    if (docs.length && !document.getElementById('viewer-summary-title').dataset.selected) showViewerSummary(docs[0].id);
   } catch (err) {
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error fetching documents</td></tr>';
   }
+}
+
+function showViewerSummary(id) {
+  const doc = (window.loadedDocuments || []).find((item) => item.id === id);
+  if (!doc) return;
+  const title = document.getElementById('viewer-summary-title');
+  title.textContent = doc.name;
+  title.dataset.selected = id;
+  document.getElementById('viewer-summary-text').textContent = doc.summary || 'No summary has been provided for this document yet.';
 }
 
 // Download Document
