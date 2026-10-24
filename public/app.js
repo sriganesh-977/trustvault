@@ -1,4 +1,6 @@
 // TrustVault Frontend Application Client
+
+
 let currentUser = null;
 let currentToken = null;
 let currentCsrfToken = null;
@@ -77,6 +79,12 @@ function quickLogin(email, password) {
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   refreshIcons();
+  try {
+    const config = await fetch('/api/config').then((r) => r.json());
+    const demoBox = document.querySelector('.demo-box');
+    if (!config.demoAccounts) demoBox?.remove();
+    else if (demoBox) demoBox.querySelector('.demo-title').textContent = 'Demo accounts · development only';
+  } catch { document.querySelector('.demo-box')?.remove(); }
   const oauthStatus = new URLSearchParams(window.location.search).get('oauth');
   if (oauthStatus === 'success') showToast('Signed in successfully.', 'success');
   if (oauthStatus === 'not_configured') showToast('This sign-in provider is not configured yet.', 'error');
@@ -90,6 +98,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (savedToken) {
     currentToken = savedToken;
     currentCsrfToken = savedCsrf;
+  }
+  if (!currentCsrfToken) {
+    try {
+      const csrfRes = await fetch('/api/auth/csrf');
+      if (csrfRes.ok) currentCsrfToken = (await csrfRes.json()).csrfToken;
+    } catch {}
   }
   try {
     const res = await api('/api/me');
@@ -113,6 +127,8 @@ function setupEventListeners() {
     document.getElementById('tab-register').classList.remove('active');
     document.getElementById('login-form').classList.remove('hidden');
     document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('auth-mode-title').textContent = 'Secure sign in';
+    document.getElementById('auth-mode-copy').textContent = 'Use your TrustVault credentials to continue.';
   });
 
   document.getElementById('tab-register').addEventListener('click', () => {
@@ -120,6 +136,8 @@ function setupEventListeners() {
     document.getElementById('tab-login').classList.remove('active');
     document.getElementById('register-form').classList.remove('hidden');
     document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('auth-mode-title').textContent = 'Create your workspace account';
+    document.getElementById('auth-mode-copy').textContent = 'Registration creates a viewer account until an administrator grants more access.';
   });
 
   // Login Submit
@@ -137,6 +155,17 @@ function setupEventListeners() {
       if (!res.ok) {
         showToast(data.error || 'Login failed', 'error');
         return;
+      }
+      if (data.mfaRequired) {
+        const code = window.prompt('Enter the 6-digit code from your authenticator app');
+        if (!code) return showToast('Two-factor verification is required', 'warning');
+        const verify = await fetch('/api/auth/mfa/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ challenge: data.challenge, code })
+        });
+        const verified = await verify.json();
+        if (!verify.ok) return showToast(verified.error || 'Verification failed', 'error');
+        Object.assign(data, verified);
       }
       currentToken = data.token;
       currentCsrfToken = data.csrfToken;
@@ -205,6 +234,23 @@ function setupEventListeners() {
     loadAdminDashboard();
   });
 
+  document.getElementById('tab-dashboard').addEventListener('click', () => {
+    document.getElementById('tab-documents').click();
+  });
+  document.getElementById('nav-security').addEventListener('click', () => {
+    document.getElementById('security-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.getElementById('nav-audit').addEventListener('click', () => {
+    if (currentUser?.role !== 'admin') return showToast('Audit access is limited to administrators', 'error');
+    document.getElementById('tab-admin').click();
+    document.getElementById('subtab-audit').click();
+  });
+  document.getElementById('nav-users').addEventListener('click', () => {
+    if (currentUser?.role !== 'admin') return showToast('User management is limited to administrators', 'error');
+    document.getElementById('tab-admin').click();
+    document.getElementById('subtab-users').click();
+  });
+
   // Admin Subtabs
   ['audit', 'users', 'docmeta'].forEach(tab => {
     document.getElementById(`subtab-${tab}`).addEventListener('click', () => {
@@ -226,6 +272,7 @@ function setupEventListeners() {
     document.getElementById('search-owner').value = '';
     loadDocuments();
   });
+  document.getElementById('document-sort').addEventListener('change', () => { window.documentPage = 1; loadDocuments(); });
 
   // Upload Form
   document.getElementById('upload-form').addEventListener('submit', async (e) => {
@@ -344,6 +391,24 @@ function setupEventListeners() {
   document.getElementById('btn-refresh-audit').addEventListener('click', loadAuditLogs);
   document.getElementById('audit-filter-action').addEventListener('change', loadAuditLogs);
   document.getElementById('audit-filter-outcome').addEventListener('change', loadAuditLogs);
+  document.getElementById('btn-mfa-setup').addEventListener('click', async () => {
+    const res = await api('/api/auth/mfa/setup', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return showToast(data.error || 'Could not start MFA setup', 'error');
+    const secret = document.getElementById('mfa-secret');
+    secret.textContent = `Secret: ${data.secret} (add it to your authenticator app)`;
+    secret.classList.remove('hidden');
+    showToast('MFA secret created. Verify a code to enable it.', 'info');
+  });
+  document.getElementById('btn-mfa-enable').addEventListener('click', async () => {
+    const code = document.getElementById('mfa-code').value.trim();
+    const res = await api('/api/auth/mfa/enable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+    const data = await res.json();
+    if (!res.ok) return showToast(data.error || 'Could not enable MFA', 'error');
+    document.getElementById('mfa-status').textContent = 'MFA enabled';
+    document.getElementById('mfa-status').className = 'badge badge-success';
+    showToast('Multi-factor authentication enabled.', 'success');
+  });
 }
 
 function logout() {
@@ -365,6 +430,11 @@ function renderLoggedInView() {
   document.getElementById('auth-section').classList.add('hidden');
   document.getElementById('dashboard-section').classList.remove('hidden');
   document.getElementById('nav-user-panel').classList.remove('hidden');
+  // Security is an account concern, not an admin-only concern.
+  const securityCard = document.getElementById('security-card');
+  if (securityCard && securityCard.parentElement !== document.getElementById('dashboard-section')) {
+    document.getElementById('dashboard-section').prepend(securityCard);
+  }
 
   // Header user badge
   document.getElementById('user-email').textContent = currentUser.email;
@@ -378,19 +448,17 @@ function renderLoggedInView() {
 
   document.getElementById('upload-panel').classList.toggle('hidden', !isOwner);
   document.getElementById('tab-admin').classList.toggle('hidden', !isAdmin);
+  document.getElementById('nav-audit').classList.toggle('hidden', !isAdmin);
+  document.getElementById('nav-users').classList.toggle('hidden', !isAdmin);
 
-  if (isAdmin) {
-    document.getElementById('tab-admin').click();
-  } else {
-    document.getElementById('tab-documents').click();
-  }
+  document.getElementById('tab-documents').click();
   refreshIcons();
 }
 
 // ---------- Document Management
 async function loadDocuments() {
   const tbody = document.getElementById('documents-tbody');
-  tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Loading documents...</td></tr>';
+  tbody.innerHTML = '<tr class="skeleton-row"><td colspan="7"><span class="loading-skeleton"></span><span class="loading-skeleton short"></span><span class="loading-skeleton"></span></td></tr>';
 
   const q = document.getElementById('search-q').value;
   const category = document.getElementById('search-category').value;
@@ -400,6 +468,11 @@ async function loadDocuments() {
   if (q) params.set('q', q);
   if (category) params.set('category', category);
   if (owner) params.set('owner', owner);
+  const [sort, direction] = document.getElementById('document-sort').value.split(':');
+  params.set('sort', sort);
+  params.set('direction', direction);
+  params.set('page', String(window.documentPage || 1));
+  params.set('pageSize', '20');
 
   try {
     const res = await api(`/api/documents?${params.toString()}`);
@@ -408,17 +481,31 @@ async function loadDocuments() {
       return;
     }
     const docs = await res.json();
-    document.getElementById('doc-count-badge').textContent = `${docs.length} document${docs.length === 1 ? '' : 's'}`;
+    const total = Number(res.headers.get('X-Total-Count') || docs.length);
+    document.getElementById('doc-count-badge').textContent = `${total} document${total === 1 ? '' : 's'}`;
 
     if (!docs.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No documents found matching your criteria.</td></tr>';
       return;
     }
 
+    const page = Number(window.documentPage || 1);
+    const pageSize = 20;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    document.getElementById('document-pagination').innerHTML = `
+      <button class="btn btn-sm btn-outline" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">Previous</button>
+      <span>Page ${page} of ${pages}</span>
+      <button class="btn btn-sm btn-outline" ${page >= pages ? 'disabled' : ''} data-page="${page + 1}">Next</button>`;
+    document.querySelectorAll('#document-pagination [data-page]').forEach((button) => button.addEventListener('click', () => {
+      window.documentPage = Number(button.dataset.page);
+      loadDocuments();
+    }));
+
     tbody.innerHTML = docs.map(d => {
       const isOwner = d.my_level === 'owner';
       const canEdit = d.my_level === 'owner' || d.my_level === 'edit';
       const canRead = true; // All returned documents have at least read level
+      const permissionLabel = isOwner ? 'Owner · View / Download / Edit / Share' : d.my_level === 'edit' ? 'Editor · View / Download / Edit' : 'Viewer · View / Download';
 
       return `
         <tr>
@@ -426,7 +513,7 @@ async function loadDocuments() {
           <td><span class="badge badge-secondary">${escapeHtml(d.category)}</span></td>
           <td>${formatBytes(d.size)}</td>
           <td>${escapeHtml(d.owner || 'You')}</td>
-          <td><span class="badge badge-${d.my_level}">${d.my_level}</span></td>
+          <td><span class="badge badge-${d.my_level}" title="${permissionLabel}">${permissionLabel}</span></td>
           <td>${formatDate(d.updated_at)}</td>
           <td>
             <div class="action-group">

@@ -761,6 +761,21 @@ input:focus, select:focus { border-color: var(--border-focus); box-shadow: 0 0 0
 .text-muted { color: var(--text-muted); }
 .empty-state { display: grid; place-items: center; gap: .55rem; min-height: 150px; padding: 1.5rem; color: var(--text-secondary); text-align: center; }
 .empty-state svg { width: 28px; height: 28px; color: #729185; }
+.security-card { margin-top: 1rem; }
+.security-card .security-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: 1rem 1.25rem 1.25rem; }
+.security-card input { min-height: 40px; width: 150px; }
+.security-card code { padding: .55rem .7rem; background: #f1f6f2; border-radius: 8px; color: var(--text-secondary); }
+.dashboard-sections { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .75rem; padding: .35rem; border: 1px solid var(--border); border-radius: 12px; background: #eef3f0; }
+.dashboard-sections .tab-btn { padding: .55rem .9rem; border-radius: 8px; color: var(--text-secondary); }
+.dashboard-sections .tab-btn:hover { background: #fff; color: var(--primary); }
+.auth-mode-note { display: grid; gap: .2rem; margin: -1rem 0 1.2rem; padding: .75rem .9rem; border-left: 3px solid var(--primary); background: #f1f6f2; color: var(--text-secondary); font-size: .83rem; }
+.auth-mode-note span:first-child { color: var(--text-primary); font-weight: 700; }
+.pagination-bar { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; padding: .8rem 1rem; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: .82rem; }
+.pagination-bar button:disabled { cursor: not-allowed; opacity: .45; transform: none; }
+.integrity-explainer { margin: .75rem 0 0; color: var(--text-secondary); font-size: .8rem; line-height: 1.45; }
+.loading-skeleton { display: inline-block; width: 28%; height: 1rem; margin: .35rem .8rem .35rem 0; border-radius: 6px; background: linear-gradient(90deg, #e9f0eb 25%, #f8fbf9 50%, #e9f0eb 75%); background-size: 200% 100%; animation: skeleton-shimmer 1.2s infinite; }
+.loading-skeleton.short { width: 16%; }
+@keyframes skeleton-shimmer { to { background-position: -200% 0; } }
 
 @media (max-width: 900px) {
   .search-bar { grid-template-columns: 1fr 1fr; }

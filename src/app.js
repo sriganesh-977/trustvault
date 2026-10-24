@@ -12,6 +12,7 @@ const COST = Number(process.env.BCRYPT_COST || 12);
 const SESSION_MS = 8 * 3600 * 1000;
 const MAX_FAILS = 5;
 const LOCK_MS = 15 * 60 * 1000;
+const MFA_CHALLENGE_MS = 5 * 60 * 1000;
 const MAX_UPLOAD = 10 * 1024 * 1024;
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', COST);
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -19,9 +20,41 @@ const now = () => new Date().toISOString();
 const str = (v, max) => (typeof v === 'string' && v.trim().length > 0 && v.length <= max ? v.trim() : null);
 const likeEscape = (s) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 
+function base32Decode(value) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const bits = String(value).replace(/=+$/, '').toUpperCase().split('').map((c) => alphabet.indexOf(c)).filter((n) => n >= 0)
+    .map((n) => n.toString(2).padStart(5, '0')).join('');
+  const bytes = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  return Buffer.from(bytes);
+}
+function validTotp(secret, code) {
+  if (!/^[0-9]{6}$/.test(String(code || ''))) return false;
+  const key = base32Decode(secret);
+  const counter = Math.floor(Date.now() / 30000);
+  for (let drift = -1; drift <= 1; drift++) {
+    const buf = Buffer.alloc(8); buf.writeBigUInt64BE(BigInt(counter + drift));
+    const digest = crypto.createHmac('sha1', key).update(buf).digest();
+    const offset = digest[19] & 15;
+    const value = (digest.readUInt32BE(offset) & 0x7fffffff) % 1000000;
+    if (String(value).padStart(6, '0') === String(code)) return true;
+  }
+  return false;
+}
+
 function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.json') }) {
   fs.mkdirSync(blobDir, { recursive: true });
   const app = express();
+  const rateBuckets = new Map();
+  const rateLimit = (max, windowMs) => (req, res, next) => {
+    const key = `${req.ip}:${req.path}`;
+    const nowMs = Date.now();
+    const bucket = rateBuckets.get(key);
+    if (!bucket || bucket.resetAt <= nowMs) rateBuckets.set(key, { count: 1, resetAt: nowMs + windowMs });
+    else if (++bucket.count > max) return res.status(429).json({ error: 'too many requests, try again later' });
+    res.set('Retry-After', String(Math.ceil(((rateBuckets.get(key)?.resetAt || nowMs) - nowMs) / 1000)));
+    next();
+  };
   app.disable('x-powered-by');
   app.use(express.json({ limit: '10kb' }));
   app.use((req, res, next) => {
@@ -213,7 +246,13 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
     }
   });
 
-  app.post('/api/auth/login', (req, res) => {
+  app.get('/api/auth/csrf', (req, res) => {
+    const token = req.headers.cookie?.match(/(?:^|;\s*)tv_session=([0-9a-f]{64})/)?.[1];
+    if (!token) return res.status(401).json({ error: 'authentication required' });
+    res.json({ csrfToken: sha(token + ':csrf') });
+  });
+
+  app.post('/api/auth/login', rateLimit(60, 15 * 60 * 1000), (req, res) => {
     const email = str(req.body?.email, 200)?.toLowerCase(), pw = req.body?.password;
     if (!email || typeof pw !== 'string' || pw.length > 200) return res.status(400).json({ error: 'email and password required' });
     const u = db.prepare('SELECT * FROM users WHERE email=?').get(email);
@@ -232,6 +271,12 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
       return res.status(401).json({ error: 'invalid credentials' });
     }
     db.prepare('UPDATE users SET failed_logins=0, locked_until=NULL WHERE id=?').run(u.id);
+    if (u.mfa_enabled) {
+      const challenge = crypto.randomBytes(32).toString('hex');
+      db.prepare('INSERT INTO login_challenges (token_hash,user_id,expires_at,created_at) VALUES (?,?,?,?)')
+        .run(sha(challenge), u.id, Date.now() + MFA_CHALLENGE_MS, now());
+      return res.json({ mfaRequired: true, challenge });
+    }
     const token = crypto.randomBytes(32).toString('hex');
     db.prepare('INSERT INTO sessions (token_hash,user_id,expires_at,created_at) VALUES (?,?,?,?)')
       .run(sha(token), u.id, Date.now() + SESSION_MS, now());
@@ -244,6 +289,31 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
       maxAge: SESSION_MS
     });
     res.json({ token, csrfToken, user: { id: u.id, email: u.email, name: u.name, role: u.role } });
+  });
+
+  app.post('/api/auth/mfa/verify', rateLimit(60, 15 * 60 * 1000), (req, res) => {
+    const challenge = String(req.body?.challenge || '');
+    const row = /^[0-9a-f]{64}$/.test(challenge) && db.prepare(`SELECT u.* FROM login_challenges c JOIN users u ON u.id=c.user_id
+      WHERE c.token_hash=? AND c.expires_at>? AND u.active=1`).get(sha(challenge), Date.now());
+    if (!row || !validTotp(row.mfa_secret, req.body?.code)) return res.status(401).json({ error: 'invalid verification code' });
+    db.prepare('DELETE FROM login_challenges WHERE token_hash=?').run(sha(challenge));
+    const session = createSession(row);
+    res.cookie('tv_session', session.token, { httpOnly: true, sameSite: 'strict', path: '/api', maxAge: SESSION_MS });
+    audit.record(db, { actor: row, ip: req.ip, action: 'mfa.login', outcome: 'allowed' });
+    res.json(session);
+  });
+
+  app.post('/api/auth/mfa/setup', requireAuth, (req, res) => {
+    const secret = crypto.randomBytes(20).toString('base64').replace(/[^A-Z2-7]/gi, '').slice(0, 32).toUpperCase();
+    db.prepare('UPDATE users SET mfa_secret=?, mfa_enabled=0 WHERE id=?').run(secret, req.user.id);
+    res.json({ secret, issuer: 'TrustVault', account: req.user.email });
+  });
+  app.post('/api/auth/mfa/enable', requireAuth, (req, res) => {
+    const u = db.prepare('SELECT mfa_secret FROM users WHERE id=?').get(req.user.id);
+    if (!u?.mfa_secret || !validTotp(u.mfa_secret, req.body?.code)) return res.status(400).json({ error: 'invalid verification code' });
+    db.prepare('UPDATE users SET mfa_enabled=1 WHERE id=?').run(req.user.id);
+    log(req, 'security.mfa.enable', 'allowed');
+    res.json({ enabled: true });
   });
 
   app.post('/api/auth/logout', requireAuth, (req, res) => {
@@ -290,6 +360,11 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
   app.get('/api/documents', requireAuth, (req, res) => {
     const q = str(req.query.q, 100), category = str(req.query.category, 50), owner = str(req.query.owner, 100);
     const from = str(req.query.from, 30), to = str(req.query.to, 30);
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 20));
+    const sortMap = { name: 'd.name', category: 'd.category', size: 'd.size', owner: 'u.name', updated: 'd.updated_at' };
+    const sort = sortMap[req.query.sort] || 'd.created_at';
+    const direction = String(req.query.direction).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
     const rows = db.prepare(`
       SELECT d.*, u.name AS owner_name, u.email AS owner_email,
         CASE WHEN d.owner_id=@uid THEN 'owner' ELSE (SELECT level FROM grants WHERE document_id=d.id AND user_id=@uid) END AS my_level
@@ -300,9 +375,16 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
         AND (@category IS NULL OR d.category=@category)
         AND (@owner IS NULL OR u.name LIKE @owner ESCAPE '\\' OR u.email LIKE @owner ESCAPE '\\')
         AND (@from IS NULL OR d.created_at>=@from) AND (@to IS NULL OR d.created_at<=@to)
-      ORDER BY d.created_at DESC LIMIT 200`).all({
-      uid: req.user.id, q: q && `%${likeEscape(q)}%`, category, owner: owner && `%${likeEscape(owner)}%`, from, to });
-    log(req, 'document.search', 'info', { detail: { q, category, owner, from, to, results: rows.length } });
+      ORDER BY ${sort} ${direction} LIMIT @limit OFFSET @offset`).all({
+      uid: req.user.id, q: q && `%${likeEscape(q)}%`, category, owner: owner && `%${likeEscape(owner)}%`, from, to,
+      limit: pageSize, offset: (page - 1) * pageSize });
+    const count = db.prepare(`SELECT COUNT(*) AS total FROM documents d JOIN users u ON u.id=d.owner_id
+      WHERE d.deleted_at IS NULL AND (d.owner_id=@uid OR EXISTS (SELECT 1 FROM grants g WHERE g.document_id=d.id AND g.user_id=@uid))
+      AND (@q IS NULL OR d.name LIKE @q ESCAPE '\\') AND (@category IS NULL OR d.category=@category)
+      AND (@owner IS NULL OR u.name LIKE @owner ESCAPE '\\' OR u.email LIKE @owner ESCAPE '\\')`).get({
+      uid: req.user.id, q: q && `%${likeEscape(q)}%`, category, owner: owner && `%${likeEscape(owner)}%` }).total;
+    res.set('X-Total-Count', String(count));
+    log(req, 'document.search', 'info', { detail: { q, category, owner, from, to, results: rows.length, page, pageSize } });
     res.json(rows.map((d) => ({ ...publicDoc(d), owner: d.owner_name, my_level: d.my_level })));
   });
 
@@ -509,6 +591,10 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
     res.json({ id, email: u.email, role, active });
   });
   app.use('/api/admin', admin);
+  app.get('/api/config', (req, res) => res.json({
+    demoAccounts: process.env.NODE_ENV !== 'production' && process.env.TRUSTVAULT_DEMO_ACCOUNTS !== '0',
+    sessionHours: SESSION_MS / 3600000
+  }));
 
   // ---------- static frontend UI
   const publicDir = path.join(__dirname, '..', 'public');
@@ -531,3 +617,4 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
 }
 
 module.exports = { createApp };
+

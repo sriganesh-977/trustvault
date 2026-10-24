@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TrustVault - Cryptographically Audited Document Vault</title>
-  <link rel="stylesheet" href="/style.css?v=8">
+  <link rel="stylesheet" href="/style.css?v=10">
 </head>
 <body>
   <div id="app">
@@ -73,6 +73,8 @@
           </div>
         </div>
 
+        <p class="auth-mode-note"><span id="auth-mode-title">Secure sign in</span><span id="auth-mode-copy">Use your TrustVault credentials to continue.</span></p>
+
         <!-- Login Form -->
         <form id="login-form" class="form">
           <div class="form-group">
@@ -107,6 +109,14 @@
 
       <!-- DASHBOARD VIEW -->
       <section id="dashboard-section" class="dashboard-section hidden">
+        <!-- Navigation Tabs (Dashboard / Documents / Audit / Users / Security) -->
+        <div class="dashboard-sections" aria-label="Workspace sections">
+          <button id="tab-dashboard" class="tab-btn active">Dashboard</button>
+          <button id="nav-audit" class="tab-btn hidden">Audit</button>
+          <button id="nav-users" class="tab-btn hidden">Users</button>
+          <button id="nav-security" class="tab-btn">Security</button>
+        </div>
+
         <!-- Navigation Tabs (Documents vs Admin) -->
         <div class="dashboard-tabs">
           <button id="tab-documents" class="tab-btn active">📁 My Documents</button>
@@ -172,6 +182,12 @@
                 <option value="confidential">Confidential</option>
               </select>
               <input type="text" id="search-owner" placeholder="Filter by owner..." class="filter-input">
+              <select id="document-sort" class="filter-select" aria-label="Sort documents">
+                <option value="updated:desc">Recently updated</option>
+                <option value="name:asc">Name A-Z</option>
+                <option value="size:desc">Largest first</option>
+                <option value="category:asc">Category</option>
+              </select>
               <button id="btn-search" class="btn btn-secondary">Filter</button>
               <button id="btn-reset-search" class="btn btn-outline">Reset</button>
             </div>
@@ -201,13 +217,14 @@
                 </tbody>
               </table>
             </div>
+            <div id="document-pagination" class="pagination-bar" aria-label="Document pagination"></div>
           </div>
         </div>
 
         <!-- ADMIN VIEW -->
         <div id="view-admin" class="view-pane hidden">
           <!-- Security Alerts & Chain Health Bar -->
-          <div class="admin-health-grid">
+        <div class="admin-health-grid">
             <div class="card health-card">
               <h4>🔗 Tamper-Evident Hash Chain</h4>
               <div id="chain-status-display" class="chain-status-box">
@@ -215,6 +232,7 @@
                   <span id="chain-indicator" class="dot dot-unknown"></span>
                   <span id="chain-status-text" class="status-text">Checking integrity...</span>
                 </div>
+                <p class="integrity-explainer">This check recomputes every audit hash and confirms that no event was changed, removed, or reordered.</p>
                 <div class="chain-stats">
                   <div>Verified Entries: <strong id="chain-entries">-</strong></div>
                   <div>Head Hash: <code id="chain-head">-</code></div>
@@ -243,6 +261,19 @@
                   <div class="stat-label">Permission Changes</div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div id="security-card" class="card security-card">
+            <div class="card-header flex-between">
+              <div><h3>Account Security</h3><p class="hint">Protect sign-in with an authenticator app.</p></div>
+              <span id="mfa-status" class="badge badge-secondary">MFA not configured</span>
+            </div>
+            <div class="security-actions">
+              <button id="btn-mfa-setup" class="btn btn-secondary">Set up MFA</button>
+              <input id="mfa-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code" aria-label="MFA verification code">
+              <button id="btn-mfa-enable" class="btn btn-primary">Enable MFA</button>
+              <code id="mfa-secret" class="hidden"></code>
             </div>
           </div>
 
@@ -480,6 +511,6 @@
   </div>
 
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=10"></script>
 </body>
 </html>

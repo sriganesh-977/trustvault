@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
   active INTEGER NOT NULL DEFAULT 1,
   failed_logins INTEGER NOT NULL DEFAULT 0,
   locked_until INTEGER,
+  mfa_secret TEXT,
+  mfa_enabled INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -53,6 +55,12 @@ CREATE TABLE IF NOT EXISTS document_versions (
   UNIQUE(document_id, version_number)
 );
 CREATE INDEX IF NOT EXISTS idx_versions_document ON document_versions(document_id);
+CREATE TABLE IF NOT EXISTS login_challenges (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  expires_at INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   ts TEXT NOT NULL,
@@ -77,7 +85,16 @@ function open(file) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  for (const statement of [
+    'ALTER TABLE users ADD COLUMN mfa_secret TEXT',
+    'ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0'
+  ]) {
+    try { db.exec(statement); } catch (error) {
+      if (!String(error.message).includes('duplicate column name')) throw error;
+    }
+  }
   return db;
 }
 
 module.exports = { open, SCHEMA };
+
