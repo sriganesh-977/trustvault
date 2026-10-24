@@ -223,6 +223,7 @@ function setupEventListeners() {
     document.getElementById('tab-admin').classList.remove('active');
     document.getElementById('view-documents').classList.remove('hidden');
     document.getElementById('view-admin').classList.add('hidden');
+    document.getElementById('view-viewer').classList.add('hidden');
     loadDocuments();
   });
 
@@ -249,6 +250,12 @@ function setupEventListeners() {
     if (currentUser?.role !== 'admin') return showToast('User management is limited to administrators', 'error');
     document.getElementById('tab-admin').click();
     document.getElementById('subtab-users').click();
+  });
+  document.getElementById('nav-viewer').addEventListener('click', () => {
+    document.getElementById('view-documents').classList.add('hidden');
+    document.getElementById('view-admin').classList.add('hidden');
+    document.getElementById('view-viewer').classList.remove('hidden');
+    renderViewerSummaries();
   });
 
   // Admin Subtabs
@@ -453,8 +460,10 @@ function renderLoggedInView() {
   document.getElementById('tab-admin').classList.toggle('hidden', !isAdmin);
   document.getElementById('nav-audit').classList.toggle('hidden', !isAdmin);
   document.getElementById('nav-users').classList.toggle('hidden', !isAdmin);
+  document.getElementById('nav-viewer').classList.toggle('hidden', currentUser.role !== 'viewer');
 
   document.getElementById('tab-documents').click();
+  if (currentUser.role === 'viewer') document.getElementById('nav-viewer').click();
   refreshIcons();
 }
 
@@ -485,6 +494,7 @@ async function loadDocuments() {
     }
     const docs = await res.json();
     window.loadedDocuments = docs;
+    renderViewerSummaries();
     const total = Number(res.headers.get('X-Total-Count') || docs.length);
     document.getElementById('doc-count-badge').textContent = `${total} document${total === 1 ? '' : 's'}`;
 
@@ -549,6 +559,22 @@ function showViewerSummary(id) {
   title.textContent = doc.name;
   title.dataset.selected = id;
   document.getElementById('viewer-summary-text').textContent = doc.summary || 'No summary has been provided for this document yet.';
+}
+
+function renderViewerSummaries() {
+  const list = document.getElementById('viewer-summary-list');
+  if (!list) return;
+  const docs = window.loadedDocuments || [];
+  if (!docs.length) {
+    list.innerHTML = '<div class="card viewer-empty"><h3>No shared documents yet</h3><p>Documents shared with your account will appear here with a plain-language summary.</p></div>';
+    return;
+  }
+  list.innerHTML = docs.map((doc) => `
+    <article class="card viewer-summary-card">
+      <div class="viewer-summary-card-heading"><div><h3>${escapeHtml(doc.name)}</h3><span>${escapeHtml(doc.category)} · ${escapeHtml(doc.owner || 'Document owner')}</span></div><span class="badge badge-${doc.my_level}">${doc.my_level === 'read' ? 'View / Download' : doc.my_level}</span></div>
+      <p>${escapeHtml(doc.summary || 'No summary has been provided for this document yet.')}</p>
+      <button class="btn btn-primary btn-sm" onclick="downloadDoc('${doc.id}', '${escapeAttr(doc.name)}')">Download document</button>
+    </article>`).join('');
 }
 
 // Download Document

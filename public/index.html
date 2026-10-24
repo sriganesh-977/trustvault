@@ -114,6 +114,7 @@
           <button id="tab-dashboard" class="tab-btn active">Dashboard</button>
           <button id="nav-audit" class="tab-btn hidden">Audit</button>
           <button id="nav-users" class="tab-btn hidden">Users</button>
+          <button id="nav-viewer" class="tab-btn hidden">Viewer</button>
           <button id="nav-security" class="tab-btn">Security</button>
         </div>
 
@@ -122,6 +123,15 @@
           <button id="tab-documents" class="tab-btn active">Documents</button>
           <button id="tab-admin" class="tab-btn hidden">🛡️ Security Admin Center</button>
         </div>
+
+        <section id="view-viewer" class="viewer-section hidden">
+          <div class="card viewer-section-header">
+            <span class="auth-eyebrow">VIEWER WORKSPACE</span>
+            <h2>Document summaries</h2>
+            <p>Read what each shared document is about before opening or downloading it.</p>
+          </div>
+          <div id="viewer-summary-list" class="viewer-summary-list"></div>
+        </section>
 
         <!-- DOCUMENTS VIEW -->
         <div id="view-documents" class="view-pane">
