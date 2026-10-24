@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const config = await fetch('/api/config').then((r) => r.json());
     const demoBox = document.querySelector('.demo-box');
     if (!config.demoAccounts) demoBox?.remove();
-    else if (demoBox) demoBox.querySelector('.demo-title').textContent = 'Demo accounts · demo environment only';
+    else if (demoBox) demoBox.querySelector('.demo-title').textContent = 'Demo accounts · public demo only';
   } catch { document.querySelector('.demo-box')?.remove(); }
   const oauthStatus = new URLSearchParams(window.location.search).get('oauth');
   if (oauthStatus === 'success') showToast('Signed in successfully.', 'success');
