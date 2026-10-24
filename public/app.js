@@ -408,6 +408,9 @@ function setupEventListeners() {
     const secret = document.getElementById('mfa-secret');
     secret.textContent = `Secret: ${data.secret} (add it to your authenticator app)`;
     secret.classList.remove('hidden');
+    document.getElementById('mfa-code').classList.remove('hidden');
+    document.getElementById('btn-mfa-enable').classList.remove('hidden');
+    document.getElementById('mfa-code').focus();
     showToast('MFA secret created. Verify a code to enable it.', 'info');
   });
   document.getElementById('btn-mfa-enable').addEventListener('click', async () => {
@@ -417,6 +420,9 @@ function setupEventListeners() {
     if (!res.ok) return showToast(data.error || 'Could not enable MFA', 'error');
     document.getElementById('mfa-status').textContent = 'MFA enabled';
     document.getElementById('mfa-status').className = 'badge badge-success';
+    document.getElementById('btn-mfa-setup').classList.add('hidden');
+    document.getElementById('mfa-code').classList.add('hidden');
+    document.getElementById('btn-mfa-enable').classList.add('hidden');
     showToast('Multi-factor authentication enabled.', 'success');
   });
 }

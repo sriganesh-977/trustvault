@@ -292,14 +292,15 @@
 
           <div id="security-card" class="card security-card">
             <div class="card-header flex-between">
-              <div><h3>Account Security</h3><p class="hint">Protect sign-in with an authenticator app.</p></div>
+              <div><h3>Multi-factor authentication</h3><p class="hint">Create an authenticator setup for stronger sign-in protection.</p></div>
               <span id="mfa-status" class="badge badge-secondary">MFA not configured</span>
             </div>
             <div class="security-actions">
-              <button id="btn-mfa-setup" class="btn btn-secondary">Set up MFA</button>
-              <input id="mfa-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code" aria-label="MFA verification code">
-              <button id="btn-mfa-enable" class="btn btn-primary">Enable MFA</button>
+              <button id="btn-mfa-setup" class="btn btn-secondary">Create MFA setup</button>
+              <span id="mfa-instructions" class="hint">Create a setup first, then add the secret to Google Authenticator, Microsoft Authenticator, or another TOTP app.</span>
               <code id="mfa-secret" class="hidden"></code>
+              <input id="mfa-code" class="hidden" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code" aria-label="MFA verification code">
+              <button id="btn-mfa-enable" class="btn btn-primary hidden">Verify and enable MFA</button>
             </div>
           </div>
 
@@ -540,6 +541,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=10"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>
