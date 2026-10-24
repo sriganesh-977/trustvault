@@ -180,7 +180,7 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
     return null;
   }
 
-  const publicDoc = (d) => ({ id: d.id, name: d.name, category: d.category, mime: d.mime, size: d.size,
+  const publicDoc = (d) => ({ id: d.id, name: d.name, summary: d.summary || '', category: d.category, mime: d.mime, size: d.size,
     created_at: d.created_at, updated_at: d.updated_at });
 
   // ---------- auth
@@ -340,10 +340,11 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
     }
     const id = crypto.randomUUID(), blob = crypto.randomUUID();
     const name = str(req.body?.name, 120) || info.name;
+    const summary = str(req.body?.summary, 500) || '';
     const category = str(req.body?.category, 50) || 'general';
     fs.writeFileSync(path.join(blobDir, blob), req.file.buffer, { mode: 0o600 });
-    db.prepare(`INSERT INTO documents (id,owner_id,name,category,mime,size,sha256,blob_name,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`).run(id, req.user.id, name, category, info.mime, req.file.size,
+    db.prepare(`INSERT INTO documents (id,owner_id,name,summary,category,mime,size,sha256,blob_name,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(id, req.user.id, name, summary, category, info.mime, req.file.size,
       sha(req.file.buffer), blob, now(), now());
     db.prepare(`INSERT INTO document_versions (document_id,version_number,blob_name,mime,size,sha256,created_by,created_at)
       VALUES (?,?,?,?,?,?,?,?)`).run(id, 1, blob, info.mime, req.file.size, sha(req.file.buffer), req.user.id, now());
@@ -409,9 +410,10 @@ function createApp({ db, blobDir, anchorPath = path.join(blobDir, '..', 'anchor.
     const r = guard(req, res, 'edit', req.params.id); if (!r) return;
     // Explicit allow-list of fields: no mass assignment (owner_id, sha256, etc. can't be set).
     const name = req.body?.name === undefined ? r.doc.name : str(req.body.name, 120);
+    const summary = req.body?.summary === undefined ? (r.doc.summary || '') : (str(req.body.summary, 500) || '');
     const category = req.body?.category === undefined ? r.doc.category : str(req.body.category, 50);
     if (!name || !category) return res.status(400).json({ error: 'invalid name or category' });
-    db.prepare('UPDATE documents SET name=?, category=?, updated_at=? WHERE id=?').run(name, category, now(), r.doc.id);
+    db.prepare('UPDATE documents SET name=?, summary=?, category=?, updated_at=? WHERE id=?').run(name, summary, category, now(), r.doc.id);
     log(req, 'document.edit', 'allowed', { documentId: r.doc.id, detail: { from: { name: r.doc.name, category: r.doc.category }, to: { name, category } } });
     res.json(publicDoc(db.prepare('SELECT * FROM documents WHERE id=?').get(r.doc.id)));
   });

@@ -141,6 +141,10 @@
                   <label for="upload-name">Display Name (optional)</label>
                   <input type="text" id="upload-name" placeholder="Leave blank to use filename">
                 </div>
+                <div class="form-group flex-2">
+                  <label for="upload-summary">Document summary <span class="hint">Shown to permitted viewers</span></label>
+                  <textarea id="upload-summary" maxlength="500" rows="2" placeholder="Briefly describe what this document is about"></textarea>
+                </div>
                 <div class="form-group flex-1">
                   <label for="upload-category">Category</label>
                   <select id="upload-category">
@@ -204,6 +208,7 @@
                 <thead>
                   <tr>
                     <th>Document</th>
+                    <th>Summary</th>
                     <th>Category</th>
                     <th>Size</th>
                     <th>Owner</th>
@@ -471,6 +476,10 @@
             <div class="form-group">
               <label for="edit-doc-name">Document Name</label>
               <input type="text" id="edit-doc-name" required maxlength="120">
+            </div>
+            <div class="form-group">
+              <label for="edit-doc-summary">Document Summary</label>
+              <textarea id="edit-doc-summary" maxlength="500" rows="4" placeholder="Explain what this document is about"></textarea>
             </div>
             <div class="form-group">
               <label for="edit-doc-category">Category</label>

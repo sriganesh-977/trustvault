@@ -290,10 +290,12 @@ function setupEventListeners() {
     const formData = new FormData();
     formData.append('file', file);
     const name = document.getElementById('upload-name').value;
+    const summary = document.getElementById('upload-summary').value.trim();
     const category = document.getElementById('upload-category').value;
     const grantEmail = document.getElementById('upload-grant-email').value.trim();
     const grantLevel = document.getElementById('upload-grant-level').value;
     if (name) formData.append('name', name);
+    if (summary) formData.append('summary', summary);
     if (category) formData.append('category', category);
     if (grantEmail) {
       formData.append('grant_email', grantEmail);
@@ -320,12 +322,13 @@ function setupEventListeners() {
     e.preventDefault();
     const id = document.getElementById('edit-doc-id').value;
     const name = document.getElementById('edit-doc-name').value;
+    const summary = document.getElementById('edit-doc-summary').value.trim();
     const category = document.getElementById('edit-doc-category').value;
     try {
       const res = await api(`/api/documents/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, category })
+        body: JSON.stringify({ name, summary, category })
       });
       const data = await res.json();
       if (!res.ok) return showToast(data.error || 'Update failed', 'error');
@@ -458,7 +461,7 @@ function renderLoggedInView() {
 // ---------- Document Management
 async function loadDocuments() {
   const tbody = document.getElementById('documents-tbody');
-  tbody.innerHTML = '<tr class="skeleton-row"><td colspan="7"><span class="loading-skeleton"></span><span class="loading-skeleton short"></span><span class="loading-skeleton"></span></td></tr>';
+  tbody.innerHTML = '<tr class="skeleton-row"><td colspan="8"><span class="loading-skeleton"></span><span class="loading-skeleton short"></span><span class="loading-skeleton"></span></td></tr>';
 
   const q = document.getElementById('search-q').value;
   const category = document.getElementById('search-category').value;
@@ -477,7 +480,7 @@ async function loadDocuments() {
   try {
     const res = await api(`/api/documents?${params.toString()}`);
     if (!res.ok) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Failed to load documents</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Failed to load documents</td></tr>';
       return;
     }
     const docs = await res.json();
@@ -485,7 +488,7 @@ async function loadDocuments() {
     document.getElementById('doc-count-badge').textContent = `${total} document${total === 1 ? '' : 's'}`;
 
     if (!docs.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No documents found matching your criteria.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No documents found matching your criteria.</td></tr>';
       return;
     }
 
@@ -510,6 +513,7 @@ async function loadDocuments() {
       return `
         <tr>
           <td><strong>📄 ${escapeHtml(d.name)}</strong></td>
+          <td><span class="document-summary">${escapeHtml(d.summary || 'No summary provided.')}</span></td>
           <td><span class="badge badge-secondary">${escapeHtml(d.category)}</span></td>
           <td>${formatBytes(d.size)}</td>
           <td>${escapeHtml(d.owner || 'You')}</td>
@@ -519,7 +523,7 @@ async function loadDocuments() {
             <div class="action-group">
               <button class="btn btn-sm btn-primary" onclick="downloadDoc('${d.id}', '${escapeAttr(d.name)}')">📥 Download</button>
               <button class="btn btn-sm btn-secondary" onclick="openVersionsModal('${d.id}', '${escapeAttr(d.name)}')">🕒 Versions</button>
-              ${canEdit ? `<button class="btn btn-sm btn-secondary" onclick="openEditModal('${d.id}', '${escapeAttr(d.name)}', '${escapeAttr(d.category)}')">✏️ Edit</button>` : ''}
+              ${canEdit ? `<button class="btn btn-sm btn-secondary" onclick="openEditModal('${d.id}', '${escapeAttr(d.name)}', '${escapeAttr(d.category)}', '${escapeAttr(d.summary || '')}')">✏️ Edit</button>` : ''}
               ${canEdit ? `<button class="btn btn-sm btn-warning" onclick="openReplaceModal('${d.id}', '${escapeAttr(d.name)}')">🔄 Replace</button>` : ''}
               ${isOwner ? `<button class="btn btn-sm btn-outline" onclick="openGrantsModal('${d.id}', '${escapeAttr(d.name)}')">👥 Grants</button>` : ''}
               ${isOwner ? `<button class="btn btn-sm btn-danger" onclick="deleteDoc('${d.id}', '${escapeAttr(d.name)}')">🗑️</button>` : ''}
@@ -529,7 +533,7 @@ async function loadDocuments() {
       `;
     }).join('');
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error fetching documents</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error fetching documents</td></tr>';
   }
 }
 
@@ -567,10 +571,11 @@ async function deleteDoc(id, name) {
 }
 
 // Edit Modal
-function openEditModal(id, name, category) {
+function openEditModal(id, name, category, summary = '') {
   document.getElementById('edit-doc-id').value = id;
   document.getElementById('edit-doc-name').value = name;
   document.getElementById('edit-doc-category').value = category;
+  document.getElementById('edit-doc-summary').value = summary;
   openModal('modal-edit');
 }
 

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY,
   owner_id INTEGER NOT NULL REFERENCES users(id),
   name TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'general',
   mime TEXT NOT NULL,
   size INTEGER NOT NULL,
@@ -87,7 +88,8 @@ function open(file) {
   db.exec(SCHEMA);
   for (const statement of [
     'ALTER TABLE users ADD COLUMN mfa_secret TEXT',
-    'ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0'
+    'ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0',
+    "ALTER TABLE documents ADD COLUMN summary TEXT NOT NULL DEFAULT ''"
   ]) {
     try { db.exec(statement); } catch (error) {
       if (!String(error.message).includes('duplicate column name')) throw error;
